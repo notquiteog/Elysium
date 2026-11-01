@@ -121,8 +121,8 @@ EnvironmentInfo DetectEnvironment(const VideoCore::RendererBase& renderer) {
 
 // A title default only where the user kept the global value; set as the per-game value, which
 // RestoreGlobalState drops again when emulation stops (the global config is never touched).
-template <typename T>
-static void OverrideIfGlobal(Settings::SwitchableSetting<T, true>& setting, T value) {
+template <typename T, bool ranged>
+static void OverrideIfGlobal(Settings::SwitchableSetting<T, ranged>& setting, T value) {
     if (!setting.UsingGlobal()) {
         return;
     }
@@ -142,6 +142,11 @@ void LoadOverrides(std::uint64_t program_id, const VideoCore::RendererBase& rend
             // occlusion reports in the query cache, or its conditional rendering hides the characters.
             OverrideIfGlobal(Settings::values.gpu_accuracy, Settings::GpuAccuracy::Low);
             OverrideIfGlobal(Settings::values.gpu_fence_behavior, Settings::GpuFenceBehavior::Balanced);
+            // Reactive flushing takes read permission off every page the GPU caches, so each guest
+            // CPU read of one takes the slow path (~12% of the main core in title 1, NX2_NOTES row
+            // 115). Switch 2 titles have read traps instead (row 150), which protect only pages the
+            // GPU wrote, once each, and which only run with reactive flushing off.
+            OverrideIfGlobal(Settings::values.use_reactive_flushing, false);
             break;
         default:
             break;
