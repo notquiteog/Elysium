@@ -350,8 +350,13 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
     if (has_new_downloads) {
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
-        const bool should_sync = Settings::IsGPUFenceBehaviorBalanced() || Settings::IsGPUFenceBehaviorAccurate();
-        if (should_sync) {
+        // Balanced/Accurate fences wait for the copy here so the download queued for it is ready
+        // at the next fence. A full host GPU wait on the GPU thread: only where a download at
+        // fences follows. Switch 2 titles copy most GPU-written ranges without one (read traps
+        // flush them on demand), and Mario Tennis Fever runs with Balanced fences by default.
+        const bool should_sync =
+            Settings::IsGPUFenceBehaviorBalanced() || Settings::IsGPUFenceBehaviorAccurate();
+        if (should_sync && DownloadsAtFence(*cpu_dest_address, amount)) {
             runtime.Finish();
         }
     }
