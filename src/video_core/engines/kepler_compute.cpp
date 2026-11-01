@@ -467,11 +467,16 @@ void KeplerCompute::CallMethod(Core::System& system, u32 method, u32 method_argu
 
     switch (method) {
     case KEPLER_COMPUTE_REG_INDEX(exec_upload): {
-        UploadInfo info{.upload_address = upload_address,
-                        .exec_address = upload_state.ExecTargetAddress(),
-                        .copy_size = upload_state.GetUploadSize(),
-                        .was_dirty = upload_dirty};
-        uploads.push_back(info);
+        // Only the older class's launch (below) reads and clears the list. Native mode launches
+        // through its QMD (0xaf in ProcessNativeMethod) and never gets there: the list grew by
+        // an entry per inline upload for the whole session, with ever larger reallocations.
+        if (!native_mode) {
+            UploadInfo info{.upload_address = upload_address,
+                            .exec_address = upload_state.ExecTargetAddress(),
+                            .copy_size = upload_state.GetUploadSize(),
+                            .was_dirty = upload_dirty};
+            uploads.push_back(info);
+        }
         upload_state.ProcessExec(regs.exec_upload.linear != 0);
         break;
     }
