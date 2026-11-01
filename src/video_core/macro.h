@@ -230,8 +230,15 @@ struct MacroEngine {
     // Store the uploaded macro code to compile them when they're called.
     inline void AddCode(u32 method, u32 data) noexcept {
         if (native_turing) {
-            if (native_write_offset < native_code.size()) native_code[native_write_offset++] = data;
-            ++native_code_generation;
+            // The generation recompiles the JIT program and clears the call memo: move it only
+            // when a word really changes (a driver uploading the same macros again changes none).
+            if (native_write_offset < native_code.size()) {
+                if (native_code[native_write_offset] != data) {
+                    native_code[native_write_offset] = data;
+                    ++native_code_generation;
+                }
+                ++native_write_offset;
+            }
             return;
         }
         uploaded_macro_code[method].push_back(data);
