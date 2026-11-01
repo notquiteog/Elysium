@@ -70,6 +70,32 @@ void ReleaseFences(DmaPusher& dma_pusher) {
         VideoCommon::DrainSite::FenceRelease);
 }
 
+// Whether a Switch 2 acquire is met by the word as guest memory holds it now, before the split's
+// back catches up. Most are (command buffer gates the CPU released, counters other queues have
+// passed), and draining for each made the front wait for all queued work thousands of times a
+// second. Greater-or-equal counters only grow, so work still queued can't unmeet them; an equal
+// value met now is what a polling console channel would have seen (Nx2SemaphoreWaiters latches
+// the same way). Masks wait for the back as before. EDEN_NX2_ACQUIRE_PEEK=0 turns this off.
+bool MetBeforeDrain(DmaPusher& dma_pusher, GPUVAddr address, u32 operation, u32 value) {
+    static const bool enabled = [] {
+        const char* env = std::getenv("EDEN_NX2_ACQUIRE_PEEK");
+        return env == nullptr || env[0] != '0';
+    }();
+    if (!enabled || !VideoCommon::GpuSplit::Get().Active()) {
+        return false;
+    }
+    const u32 current = dma_pusher.memory_manager.Read<u32>(address);
+    // Puller::GpuSemaphoreOperation values.
+    switch (operation) {
+    case Nx2SemaphoreWaiters::AcquireGequal:
+        return current >= value;
+    case Nx2SemaphoreWaiters::AcquireEqual:
+        return current == value;
+    default:
+        return false;
+    }
+}
+
 } // Anonymous namespace
 
 bool Puller::PendingAcquire::Matches(u32 current) const {
@@ -87,6 +113,10 @@ bool Puller::PendingAcquire::Matches(u32 current) const {
 
 bool Puller::CanResumeAcquire(DmaPusher& dma_pusher) {
     if (!pending_acquire) {
+        return true;
+    }
+    if (MetBeforeDrain(dma_pusher, pending_acquire->address, pending_acquire->operation,
+                       pending_acquire->value)) {
         return true;
     }
     // The release may still be queued for the split GPU thread's back half (and the caches
@@ -255,6 +285,9 @@ void Puller::ProcessSemaphoreTriggerMethod(DmaPusher& dma_pusher) {
             return;
         }
         VideoCommon::Nx2Profile::Add(VideoCommon::Nx2Profile::Counter::AcquireChecks, 1);
+        if (MetBeforeDrain(dma_pusher, acquire.address, acquire.operation, acquire.value)) {
+            return;
+        }
         DrainBack();
         if (acquire.Matches(ReadSemaphoreWord(dma_pusher, acquire.address))) {
             return;
