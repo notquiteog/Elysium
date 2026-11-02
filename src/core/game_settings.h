@@ -58,4 +58,8 @@ EnvironmentInfo DetectEnvironment(const VideoCore::RendererBase& renderer);
 
 void LoadOverrides(std::uint64_t program_id, const VideoCore::RendererBase& renderer);
 
+/// Title defaults for settings read while the renderer is created, applied before that (no
+/// renderer to look at yet). Same rule as LoadOverrides: only where the user kept the global value.
+void LoadEarlyOverrides(std::uint64_t program_id);
+
 } // namespace Core::GameSettings

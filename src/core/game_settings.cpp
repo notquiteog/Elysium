@@ -130,6 +130,20 @@ static void OverrideIfGlobal(Settings::SwitchableSetting<T, ranged>& setting, T 
     setting.SetValue(value);
 }
 
+void LoadEarlyOverrides(std::uint64_t program_id) {
+    switch (static_cast<TitleID>(program_id)) {
+        case TitleID::MarioTennisFever:
+            // Present from the present thread: otherwise the GPU thread's back half acquires the
+            // swapchain image and presents itself, and with FIFO vsync each can block it for up to
+            // a refresh while the next frame's draws wait. The present thread's crashes (NX2_NOTES
+            // row 118) were fixed before row 138; it has been on in the Switch 2 dev config since.
+            OverrideIfGlobal(Settings::values.async_presentation, true);
+            break;
+        default:
+            break;
+    }
+}
+
 void LoadOverrides(std::uint64_t program_id, const VideoCore::RendererBase& renderer) {
     const auto env = DetectEnvironment(renderer);
 
