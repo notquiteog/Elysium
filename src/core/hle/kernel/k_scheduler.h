@@ -105,7 +105,8 @@ public:
 
     /// The dummy threads UpdateHighestPriorityThreads made runnable, to notify after unlocking.
     static void TakeWokenDummyThreads(KernelCore& kernel,
-                                      boost::container::small_vector<KThread*, 8>& out);
+                                      boost::container::small_vector<KThread*, 8>& out,
+                                      boost::container::small_vector<KThread*, 8>& opened);
 
     static void ClearPreviousThread(KernelCore& kernel, KThread* thread);
 

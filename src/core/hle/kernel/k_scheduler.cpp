@@ -93,8 +93,9 @@ void KScheduler::RescheduleCurrentHLEThread(KernelCore& kernel) {
 }
 
 void KScheduler::TakeWokenDummyThreads(KernelCore& kernel,
-                                       boost::container::small_vector<KThread*, 8>& out) {
-    kernel.GlobalSchedulerContext().TakeWokenDummyThreads(out);
+                                       boost::container::small_vector<KThread*, 8>& out,
+                                       boost::container::small_vector<KThread*, 8>& opened) {
+    kernel.GlobalSchedulerContext().TakeWokenDummyThreads(kernel, out, opened);
 }
 
 u64 KScheduler::UpdateHighestPriorityThreads(KernelCore& kernel) {

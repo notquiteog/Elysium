@@ -56,9 +56,12 @@ public:
     void RegisterDummyThreadForWakeup(KThread* thread) noexcept;
     void WakeupWaitingDummyThreads(KernelCore& kernel) noexcept;
     /// Moves the dummy threads made runnable under this hold of the lock into `out` (to notify
-    /// once it is released).
+    /// once it is released). Those it could take a reference on are also listed in `opened`, to
+    /// be closed once they were notified (a host thread may exit as soon as it sees itself
+    /// runnable; dummies living in thread-local storage have no reference count to take).
     using WokenDummyThreads = boost::container::small_vector<KThread*, 8>;
-    void TakeWokenDummyThreads(WokenDummyThreads& out) noexcept;
+    void TakeWokenDummyThreads(KernelCore& kernel, WokenDummyThreads& out,
+                               WokenDummyThreads& opened) noexcept;
 
 private:
     friend class KScopedSchedulerLock;

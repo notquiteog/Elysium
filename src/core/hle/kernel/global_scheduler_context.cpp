@@ -86,13 +86,19 @@ void GlobalSchedulerContext::WakeupWaitingDummyThreads(KernelCore& kernel) noexc
     m_woken_dummy_threads.clear();
 }
 
-void GlobalSchedulerContext::TakeWokenDummyThreads(WokenDummyThreads& out) noexcept {
+void GlobalSchedulerContext::TakeWokenDummyThreads(KernelCore& kernel, WokenDummyThreads& out,
+                                                   WokenDummyThreads& opened) noexcept {
     ASSERT(this->IsLocked());
     if (m_dummy_threads_to_notify.empty()) {
         return;
     }
     out.assign(m_dummy_threads_to_notify.begin(), m_dummy_threads_to_notify.end());
     m_dummy_threads_to_notify.clear();
+    for (KThread* const thread : out) {
+        if (thread->Open(kernel)) {
+            opened.push_back(thread);
+        }
+    }
 }
 
 } // namespace Kernel

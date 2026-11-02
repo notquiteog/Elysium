@@ -61,7 +61,9 @@ public:
             const u64 cores_needing_scheduling =
                 SchedulerType::UpdateHighestPriorityThreads(m_kernel);
             boost::container::small_vector<KThread*, 8> woken_dummy_threads;
-            SchedulerType::TakeWokenDummyThreads(m_kernel, woken_dummy_threads);
+            boost::container::small_vector<KThread*, 8> opened_dummy_threads;
+            SchedulerType::TakeWokenDummyThreads(m_kernel, woken_dummy_threads,
+                                                 opened_dummy_threads);
 
             // Note that we no longer hold the lock, and unlock the spinlock.
             m_owner_thread = nullptr;
@@ -75,6 +77,11 @@ public:
 
             // Enable scheduling, and perform a rescheduling operation.
             SchedulerType::EnableScheduling(m_kernel, cores_needing_scheduling);
+
+            // The references that kept the woken dummy threads alive until their notify.
+            for (KThread* const thread : opened_dummy_threads) {
+                thread->Close(m_kernel);
+            }
         }
     }
 
