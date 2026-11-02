@@ -80,6 +80,7 @@ private:
     void RenderAppletCaptureLayer(std::span<const Tegra::FramebufferConfig> framebuffers);
 
     std::vector<Tegra::FramebufferConfig> applet_capture_layers;
+    u64 native_capture_frames{}; ///< Switch 2 frames since the capture was last drawn
     std::vector<Tegra::FramebufferConfig> screenshot_layer_scratch;
 
     Tegra::MaxwellDeviceMemoryManager& device_memory;

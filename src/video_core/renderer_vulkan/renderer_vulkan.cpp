@@ -427,6 +427,16 @@ void RendererVulkan::RenderAppletCaptureLayer(
     if (capture_layers.empty())
         return;
 
+    // Switch 2 titles present through nx2:vi2, and only the Switch 1 vi path and applets read
+    // this capture (GetAppletCaptureBuffer): drawing it for every frame cost a framebuffer
+    // lookup, a render pass break and a 1280x720 draw on the GPU thread. Keep it at most half a
+    // second old for them instead. The first frame is always drawn.
+    const bool switch2_layers = std::ranges::all_of(
+        capture_layers, [](const Tegra::FramebufferConfig& layer) { return layer.native_tiling; });
+    if (switch2_layers && applet_frame.image && (++native_capture_frames % 30) != 0) {
+        return;
+    }
+
     if (!applet_frame.image) {
         applet_frame.image = CreateWrappedImage(memory_allocator, CaptureImageSize, CaptureFormat);
         applet_frame.image_view = CreateWrappedImageView(device, applet_frame.image, CaptureFormat);
