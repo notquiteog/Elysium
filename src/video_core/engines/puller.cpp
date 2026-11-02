@@ -70,45 +70,33 @@ void ReleaseFences(DmaPusher& dma_pusher) {
         VideoCommon::DrainSite::FenceRelease);
 }
 
-// Whether a Switch 2 acquire is met by the word as guest memory holds it now, before the split's
-// back catches up. Most are (command buffer gates the CPU released, counters other queues have
-// passed), and draining for each made the front wait for all queued work thousands of times a
-// second. Greater-or-equal counters only grow, so work still queued can't unmeet them; an equal
-// value met now is what a polling console channel would have seen (Nx2SemaphoreWaiters latches
-// the same way). Masks wait for the back as before. EDEN_NX2_ACQUIRE_PEEK=0 turns this off.
+// Whether a Switch 2 greater-or-equal acquire is met by the word as guest memory holds it now, or
+// by a release the back already ran whose write only waits for the host GPU (delayed fences),
+// before the split's back catches up. Most are (counters other queues have passed), and draining
+// for each made the front wait for all queued work thousands of times a second. These counters
+// only grow, so work still queued (this channel's own releases included) can't unmeet them.
+// Equal and mask acquires wait for the back as before: a release still queued on this channel
+// may change the word first (e.g. close a gate before waiting for it to open again).
+// EDEN_NX2_ACQUIRE_PEEK=0 turns this off.
 bool MetBeforeDrain(DmaPusher& dma_pusher, GPUVAddr address, u32 operation, u32 value) {
     static const bool enabled = [] {
         const char* env = std::getenv("EDEN_NX2_ACQUIRE_PEEK");
         return env == nullptr || env[0] != '0';
     }();
-    if (!enabled || !VideoCommon::GpuSplit::Get().Active()) {
-        return false;
-    }
     // Puller::GpuSemaphoreOperation values.
-    const auto met = [operation, value](u32 current) {
-        switch (operation) {
-        case Nx2SemaphoreWaiters::AcquireGequal:
-            return current >= value;
-        case Nx2SemaphoreWaiters::AcquireEqual:
-            return current == value;
-        default:
-            return false;
-        }
-    };
-    if (met(dma_pusher.memory_manager.Read<u32>(address))) {
-        return true;
-    }
-    // Or by a release the back already ran whose write waits for the host GPU (delayed fences).
-    if (operation != Nx2SemaphoreWaiters::AcquireGequal &&
-        operation != Nx2SemaphoreWaiters::AcquireEqual) {
+    if (!enabled || operation != Nx2SemaphoreWaiters::AcquireGequal ||
+        !VideoCommon::GpuSplit::Get().Active()) {
         return false;
+    }
+    if (dma_pusher.memory_manager.Read<u32>(address) >= value) {
+        return true;
     }
     const auto device = dma_pusher.memory_manager.GpuToCpuAddress(address);
     if (!device) {
         return false;
     }
     const auto pending = dma_pusher.rasterizer->PendingSemaphoreRelease(*device);
-    return pending && met(*pending);
+    return pending && *pending >= value;
 }
 
 } // Anonymous namespace
