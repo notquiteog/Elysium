@@ -4,6 +4,8 @@
 #pragma once
 
 #include <atomic>
+
+#include <boost/container/small_vector.hpp>
 #include "common/assert.h"
 #include "core/hle/kernel/k_interrupt_manager.h"
 #include "core/hle/kernel/k_spin_lock.h"
@@ -58,10 +60,18 @@ public:
             // We're no longer going to hold the lock. Take note of what cores need scheduling.
             const u64 cores_needing_scheduling =
                 SchedulerType::UpdateHighestPriorityThreads(m_kernel);
+            boost::container::small_vector<KThread*, 8> woken_dummy_threads;
+            SchedulerType::TakeWokenDummyThreads(m_kernel, woken_dummy_threads);
 
             // Note that we no longer hold the lock, and unlock the spinlock.
             m_owner_thread = nullptr;
             m_spin_lock.Unlock();
+
+            // Wake the host threads of dummy threads made runnable (a futex wake-up each), now
+            // that the other cores no longer wait for the lock behind it.
+            for (KThread* const thread : woken_dummy_threads) {
+                thread->DummyThreadNotify();
+            }
 
             // Enable scheduling, and perform a rescheduling operation.
             SchedulerType::EnableScheduling(m_kernel, cores_needing_scheduling);

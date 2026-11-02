@@ -1389,14 +1389,19 @@ namespace Kernel {
     }
 
     void KThread::DummyThreadEndWait(KernelCore& kernel) {
+        DummyThreadMarkRunnable(kernel);
+        DummyThreadNotify();
+    }
+
+    void KThread::DummyThreadMarkRunnable(KernelCore& kernel) {
         ASSERT(KScheduler::IsSchedulerLockedByCurrentThread(kernel));
         ASSERT(this->IsDummyThread());
+        std::scoped_lock lock{m_dummy_thread_mutex};
+        m_dummy_thread_runnable = true;
+    }
 
-        // Wake up the waiting thread.
-        {
-            std::scoped_lock lock{m_dummy_thread_mutex};
-            m_dummy_thread_runnable = true;
-        }
+    void KThread::DummyThreadNotify() {
+        // The waiter rechecks m_dummy_thread_runnable, so a late or extra notify is harmless.
         m_dummy_thread_cv.notify_one();
     }
 

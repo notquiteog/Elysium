@@ -75,11 +75,24 @@ void GlobalSchedulerContext::UnregisterDummyThreadForWakeup(KThread* thread) noe
 
 void GlobalSchedulerContext::WakeupWaitingDummyThreads(KernelCore& kernel) noexcept {
     ASSERT(this->IsLocked());
-    if (m_woken_dummy_threads.size() > 0) {
-        for (auto* thread : m_woken_dummy_threads)
-            thread->DummyThreadEndWait(kernel);
-        m_woken_dummy_threads.clear();
+    // Marked runnable here, under the lock; the scheduler lock's Unlock wakes their host threads
+    // once the lock is released (TakeWokenDummyThreads), so the futex wake-up of each is no longer
+    // paid while every core waits for the lock (each host service request wakes one).
+    for (auto* thread : m_woken_dummy_threads) {
+        thread->DummyThreadMarkRunnable(kernel);
     }
+    m_dummy_threads_to_notify.insert(m_dummy_threads_to_notify.end(),
+                                     m_woken_dummy_threads.begin(), m_woken_dummy_threads.end());
+    m_woken_dummy_threads.clear();
+}
+
+void GlobalSchedulerContext::TakeWokenDummyThreads(WokenDummyThreads& out) noexcept {
+    ASSERT(this->IsLocked());
+    if (m_dummy_threads_to_notify.empty()) {
+        return;
+    }
+    out.assign(m_dummy_threads_to_notify.begin(), m_dummy_threads_to_notify.end());
+    m_dummy_threads_to_notify.clear();
 }
 
 } // namespace Kernel

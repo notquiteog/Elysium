@@ -667,6 +667,9 @@ public:
     void RequestDummyThreadWait(KernelCore& kernel);
     void DummyThreadBeginWait(KernelCore& kernel);
     void DummyThreadEndWait(KernelCore& kernel);
+    /// DummyThreadEndWait in two steps: mark runnable under the scheduler lock, notify after it.
+    void DummyThreadMarkRunnable(KernelCore& kernel);
+    void DummyThreadNotify();
 
     uintptr_t GetArgument() const {
         return m_argument;

@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <boost/container/small_vector.hpp>
+
 #include <atomic>
 
 #include "common/common_types.h"
@@ -100,6 +102,10 @@ public:
     static void EnableScheduling(KernelCore& kernel, u64 cores_needing_scheduling);
 
     static u64 UpdateHighestPriorityThreads(KernelCore& kernel);
+
+    /// The dummy threads UpdateHighestPriorityThreads made runnable, to notify after unlocking.
+    static void TakeWokenDummyThreads(KernelCore& kernel,
+                                      boost::container::small_vector<KThread*, 8>& out);
 
     static void ClearPreviousThread(KernelCore& kernel, KThread* thread);
 
