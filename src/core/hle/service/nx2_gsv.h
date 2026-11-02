@@ -3440,12 +3440,17 @@ private:
 
     // 1111(u32): a version or mode number the server checks and records.
     void SetFeatureVersion(HLERequestContext& ctx) {
-        LOG_INFO(Service, "nx2:gsv TIPC 1111 value {:#x}", ctx.CommandBuffer()[2]);
+        // Hyrule Warriors sends it ~50 times a second with the same value (89% of its log lines).
+        const u32 value = ctx.CommandBuffer()[2];
+        if (std::exchange(m_feature_version, value) != value) {
+            LOG_INFO(Service, "nx2:gsv TIPC 1111 value {:#x}", value);
+        }
         TipcReplyWords(ctx, {});
     }
 
     std::set<u32> m_address_spaces;        ///< Ids attached with 434
     bool m_client_handle_registered = false; ///< Set by 11
+    u32 m_feature_version = ~0U;           ///< Last value of 1111, logged when it changes
 
     // Index of the first raw data word of a TIPC request: header (2 words), then an optional
     // special header with pid and copy/move handle words.
