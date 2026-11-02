@@ -141,7 +141,13 @@ VkBufferView Buffer::View(u32 offset, u32 size, VideoCore::Surface::PixelFormat 
         return offset == view.offset && size == view.size && format == view.format;
     })};
     if (it != views.end()) {
-        return *it->handle;
+        // Views are made per (offset, size, format) and kept with the buffer, so a buffer bound at
+        // many offsets collects many; looked up for every texel buffer of every draw, keep the
+        // one just used at the front (the handles themselves don't move).
+        if (it != views.begin()) {
+            std::iter_swap(it, views.begin());
+        }
+        return *views.front().handle;
     }
     views.push_back({
         .offset = offset,
