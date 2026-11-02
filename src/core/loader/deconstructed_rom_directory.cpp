@@ -17,6 +17,7 @@
 #include "common/random.h"
 #include "common/settings.h"
 #include "core/core.h"
+#include "core/file_sys/common_funcs.h"
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/patch_manager.h"
@@ -280,6 +281,52 @@ std::vector<FileSys::VirtualDir> FindSidecarDirs(const FileSys::VirtualDir& exef
     return dirs;
 }
 
+// Extracted add-on content of a loose dump: <game>/dlc/<aoc title id>/<version>/romfs. Switch 2
+// Edition upgrade packs ship this way (often just a placeholder file), and the game only unlocks
+// once aoc:u lists them. Dumpers name the pack after the NX application (0100...) even when the
+// program is the Switch 2 build (0400...), so the platform byte follows the running program.
+std::vector<std::pair<u64, FileSys::VirtualFile>> FindLooseAOC(const FileSys::VirtualDir& exefs_dir,
+                                                               u64 program_id) {
+    std::vector<std::pair<u64, FileSys::VirtualFile>> out;
+    const auto game_dir = FindSidecarDirs(exefs_dir).back();
+    const auto dlc_dir = game_dir != nullptr ? game_dir->GetSubdirectory("dlc") : nullptr;
+    if (dlc_dir == nullptr) {
+        return out;
+    }
+    for (const auto& aoc_dir : dlc_dir->GetSubdirectories()) {
+        const auto& name = aoc_dir->GetName();
+        if (name.size() != 16 || name.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos) {
+            continue;
+        }
+        const u64 aoc_id = (std::stoull(name, nullptr, 16) & 0x00FFFFFFFFFFFFFFULL) |
+                           (program_id & 0xFF00000000000000ULL);
+        if (FileSys::GetBaseTitleID(aoc_id) != FileSys::GetBaseTitleID(program_id)) {
+            continue;
+        }
+        // The newest version folder wins.
+        FileSys::VirtualDir romfs_dir;
+        u64 best_version = 0;
+        for (const auto& version_dir : aoc_dir->GetSubdirectories()) {
+            const auto& version = version_dir->GetName();
+            if (version.empty() || version.find_first_not_of("0123456789") != std::string::npos) {
+                continue;
+            }
+            const auto candidate = version_dir->GetSubdirectory("romfs");
+            if (candidate != nullptr && (romfs_dir == nullptr || std::stoull(version) >= best_version)) {
+                romfs_dir = candidate;
+                best_version = std::stoull(version);
+            }
+        }
+        if (romfs_dir == nullptr) {
+            continue;
+        }
+        LOG_INFO(Loader, "Loose add-on content {:016X} (v{}) from {}", aoc_id, best_version,
+                 aoc_dir->GetFullPath());
+        out.emplace_back(aoc_id, FileSys::CreateRomFS(romfs_dir));
+    }
+    return out;
+}
+
 } // namespace
 
 AppLoader_DeconstructedRomDirectory::AppLoader_DeconstructedRomDirectory(FileSys::VirtualFile file_, bool override_update_)
@@ -410,6 +457,9 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
     if (result != ResultStatus::Success) {
         return {result, {}};
     }
+
+    FileSys::SetLooseAOC(standalone ? FindLooseAOC(dir, metadata.GetTitleID())
+                                    : std::vector<std::pair<u64, FileSys::VirtualFile>>{});
 
     if (override_update) {
         const FileSys::PatchManager patch_manager(

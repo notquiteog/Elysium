@@ -4,6 +4,8 @@
 #pragma once
 
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "common/common_types.h"
 #include "core/file_sys/vfs/vfs_types.h"
@@ -32,6 +34,11 @@ enum class StorageId : u8 {
     NandUser = 4,
     SdCard = 5,
 };
+
+// Extracted add-on content (<game>/dlc/<aoc title id>/<n>/romfs) has no NCA to register, so the
+// loose ExeFS loader hands its RomFS over here; aoc:u lists it and Open() serves it as Data.
+void SetLooseAOC(std::vector<std::pair<u64, VirtualFile>> entries);
+[[nodiscard]] std::vector<u64> GetLooseAOCTitleIDs();
 
 /// File system interface to the RomFS archive
 class RomFSFactory {

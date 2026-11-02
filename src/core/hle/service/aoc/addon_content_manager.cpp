@@ -17,6 +17,7 @@
 #include "core/file_sys/nca_metadata.h"
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/registered_cache.h"
+#include "core/file_sys/romfs_factory.h"
 #include "core/hle/kernel/k_event.h"
 #include "core/hle/service/aoc/addon_content_manager.h"
 #include "core/hle/service/aoc/purchase_event_manager.h"
@@ -51,6 +52,11 @@ static std::vector<u64> AccumulateAOCTitleIDs(Core::System& system) {
                        Loader::ResultStatus::Success;
             }),
         add_on_content.end());
+    for (const u64 tid : FileSys::GetLooseAOCTitleIDs()) {
+        if (std::find(add_on_content.begin(), add_on_content.end(), tid) == add_on_content.end()) {
+            add_on_content.push_back(tid);
+        }
+    }
     return add_on_content;
 }
 
@@ -104,6 +110,8 @@ Result IAddOnContentManager::CountAddOnContent(Out<u32> out_count, ClientProcess
         R_SUCCEED();
     }
 
+    // The service outlives a single boot; pick up add-on content registered by the current load.
+    add_on_content = AccumulateAOCTitleIDs(system);
     *out_count = static_cast<u32>(
         std::count_if(add_on_content.begin(), add_on_content.end(),
                       [current](u64 tid) { return CheckAOCTitleIDMatchesBase(tid, current); }));
@@ -122,6 +130,7 @@ Result IAddOnContentManager::ListAddOnContent(Out<u32> out_count,
     std::vector<u32> out;
     const auto& disabled = Settings::values.disabled_addons[current];
     if (std::find(disabled.begin(), disabled.end(), "DLC") == disabled.end()) {
+        add_on_content = AccumulateAOCTitleIDs(system);
         for (u64 content_id : add_on_content) {
             if (FileSys::GetBaseTitleID(content_id) != current) {
                 continue;
@@ -131,6 +140,7 @@ Result IAddOnContentManager::ListAddOnContent(Out<u32> out_count,
         }
     }
 
+    LOG_INFO(Service_AOC, "{} add-on content entries for {:016X}", out.size(), current);
     R_UNLESS(out.size() >= offset, AM::ResultApplicationRecordNotFound);
 
     *out_count = static_cast<u32>(std::min<size_t>(out.size() - offset, count));
