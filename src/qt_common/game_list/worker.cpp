@@ -488,6 +488,11 @@ void GameListWorker::ScanFileSystem(ScanTarget target, const std::vector<std::fi
                                      " (Switch 2 Edition)");
                     }
                 }
+                if (name.empty() || name == " ") {
+                    name = QFileInfo(QString::fromStdString(physical_name))
+                               .completeBaseName()
+                               .toStdString();
+                }
 
                 const FileSys::PatchManager patch{id, system.GetFileSystemController(),
                                                   system.GetContentProvider()};
