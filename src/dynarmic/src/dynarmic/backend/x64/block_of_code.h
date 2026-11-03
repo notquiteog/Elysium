@@ -173,6 +173,10 @@ private:
     static constexpr size_t MXCSR_ALREADY_EXITED = 1 << 0;
     static constexpr size_t FORCE_RETURN = 1 << 1;
 
+#ifdef _WIN32
+    // Before constant_pool: its constructor commits and writes code space, which is only reserved.
+    size_t committed_size = 0;
+#endif
     ConstantPool constant_pool;
     JitStateInfo jsi;
     std::array<const void*, 4> return_from_run_code;
@@ -180,9 +184,6 @@ private:
     RunCodeFuncType step_code = nullptr;
     RunCodeCallbacks cb;
     CodePtr code_begin = nullptr;
-#ifdef _WIN32
-    size_t committed_size = 0;
-#endif
     bool prelude_complete = false;
 
     void GenRunCode(std::function<void(BlockOfCode&)> rcp);
