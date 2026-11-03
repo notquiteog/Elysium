@@ -841,7 +841,15 @@ private:
                 Kernel::KMemoryManager::EncodeOption(Kernel::KMemoryManager::Pool::SystemNonSecure,
                                                      Kernel::KMemoryManager::Direction::FromBack)))) {
             if (log_failure) {
-                LOG_ERROR(Service, "nx2:gpu 214 could not allocate {:#x} bytes", size);
+                auto& manager = kernel_core.MemoryManager();
+                using Pool = Kernel::KMemoryManager::Pool;
+                LOG_ERROR(Service,
+                          "nx2:gpu 214 could not allocate {:#x} bytes (system non-secure pool {} of "
+                          "{} MiB free, application pool {} of {} MiB free)",
+                          size, manager.GetFreeSize(Pool::SystemNonSecure) >> 20,
+                          manager.GetSize(Pool::SystemNonSecure) >> 20,
+                          manager.GetFreeSize(Pool::Application) >> 20,
+                          manager.GetSize(Pool::Application) >> 20);
             }
             return std::nullopt;
         }
