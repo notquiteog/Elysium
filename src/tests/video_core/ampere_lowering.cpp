@@ -53,6 +53,52 @@ TEST_CASE("Ampere BRA.CONV always branches and BRA.DIV never does", "[video_core
     REQUIRE(CountMaxwell(dropped, 0xe24, 52) == 0);
 }
 
+TEST_CASE("Bananza captured BRA.U preserves its predicate and relative target",
+          "[video_core][ampere]") {
+    // 040074A01BF12000 fragment abb4ff47..., code offset 0x5b0.
+    constexpr Instruction Nop{{0x00007918, 0, 0, 0x000fc000}};
+    std::array<Instruction, 133> code;
+    code.fill(Nop);
+    code[91] = Instruction{{0x00008947, 0x00000281, 0x03800000, 0x000fea00}};
+    code.back() = EXIT;
+    const auto lowered = LowerToMaxwell(code);
+    INFO(lowered.error);
+    REQUIRE(lowered);
+    REQUIRE(lowered.instructions.size() == code.size());
+    CHECK(lowered.instructions[91] == 0xe24000001b08000fULL);
+
+    const auto backward = LowerToMaxwell(std::array{
+        Nop, Instruction{{0x00008947, 0xffffffe1, 0x0383ffff, 0x000fea00}}, EXIT});
+    REQUIRE(backward);
+    CHECK(backward.instructions[1] == 0xe2400fffff08000fULL);
+
+    const auto guarded = LowerToMaxwell(std::array{
+        Instruction{{0x00008947, 0x11, 0x04800000, 0x000fea00}}, Nop, EXIT});
+    REQUIRE(guarded);
+    REQUIRE(guarded.instructions.size() == 4);
+    CHECK(guarded.instructions[0] == 0xe24000000100000fULL);
+    CHECK(guarded.instructions[1] == 0xe24000000109000fULL);
+}
+
+TEST_CASE("Ampere BRA.U rejects unsupported fields and invalid targets", "[video_core][ampere]") {
+    const Instruction branch{{0x00008947, 0x1, 0x03800000, 0x000fea00}};
+    for (const u32 bit : {82U, 83U, 84U, 85U, 86U, 91U, 92U, 93U, 94U, 95U,
+                          96U, 97U, 98U, 99U, 100U, 101U, 102U, 103U, 104U}) {
+        auto unsupported = branch;
+        unsupported.words[bit / 32] |= 1U << (bit % 32);
+        const auto lowered = LowerToMaxwell(std::array{unsupported, EXIT});
+        INFO(bit);
+        REQUIRE_FALSE(lowered);
+        CHECK(lowered.error == "native branch convergence mode");
+    }
+    for (const u32 offset : {5U, 0x11U, 0xffffffe1U}) {
+        auto invalid = branch;
+        invalid.words[1] = offset;
+        if (offset == 0xffffffe1U) invalid.words[2] |= 0x3ffff;
+        REQUIRE_FALSE(LowerToMaxwell(std::array{invalid, EXIT}));
+    }
+}
+
 TEST_CASE("Ampere TLD.SCR.LZ takes its handle from a uniform register", "[video_core][ampere]") {
     // TLD.SCR.LZ R5, R8, R4, R5, UR4, 0x0, 2D, 0x7 -> Maxwell TLD.B.
     const std::array<Instruction, 2> code{{

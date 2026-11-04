@@ -3836,7 +3836,8 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
             // when its active threads are the mask in the uniform register at 24-31 (bit 91;
             // URZ without it). The compiler puts warp-synchronous fast paths behind them (shuffles
             // on a converged warp; the other path calls a WARPSYNC helper). Eden runs the warp's
-            // threads converged there: .CONV always branches and .DIV never does.
+            // threads converged there: .CONV always branches and .DIV never does. .U (1) only says
+            // the branch is warp-uniform, so it is a plain branch; its unused fields must be zero.
             const u32 mode = insn.Bits(32, 2);
             if ((mode <= 1 && insn.Bits(91, 1)) ||
                 (mode == 1 && (insn.Bits(82, 5) || insn.Bits(92, 13))))
