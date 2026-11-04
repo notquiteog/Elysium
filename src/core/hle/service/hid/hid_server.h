@@ -215,6 +215,10 @@ private:
                                         InCopyHandle<Kernel::KTransferMemory> t_mem_2);
     Result FinalizeSevenSixAxisSensor(ClientAppletResourceUserId aruid);
     Result ResetSevenSixAxisSensorTimestamp(ClientAppletResourceUserId aruid);
+    Result InitializeNmouse(u8 pointer_type, s32 width, s32 height, u32 unknown,
+                            ClientAppletResourceUserId aruid, u64 t_mem_size,
+                            InCopyHandle<Kernel::KTransferMemory> t_mem);
+    Result FinalizeNmouse(ClientAppletResourceUserId aruid);
     Result IsUsbFullKeyControllerEnabled(Out<bool> out_is_enabled,
                                          ClientAppletResourceUserId aruid);
     Result GetPalmaConnectionHandle(Out<Palma::PalmaConnectionHandle> out_handle,

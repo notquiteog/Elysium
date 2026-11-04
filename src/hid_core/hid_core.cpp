@@ -169,6 +169,14 @@ NpadIdType HIDCore::GetLastActiveController() const {
     return last_active_controller;
 }
 
+void HIDCore::SetNmouseInUse(bool in_use) {
+    nmouse_in_use = in_use;
+}
+
+bool HIDCore::IsNmouseInUse() const {
+    return nmouse_in_use;
+}
+
 void HIDCore::EnableAllControllerConfiguration() {
     player_1->EnableConfiguration();
     player_2->EnableConfiguration();

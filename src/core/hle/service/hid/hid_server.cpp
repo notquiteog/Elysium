@@ -28,6 +28,7 @@
 #include "hid_core/resources/debug_pad/debug_pad.h"
 #include "hid_core/resources/keyboard/keyboard.h"
 #include "hid_core/resources/mouse/mouse.h"
+#include "hid_core/resources/mouse/nmouse.h"
 #include "hid_core/resources/npad/npad.h"
 #include "hid_core/resources/npad/npad_types.h"
 #include "hid_core/resources/npad/npad_vibration.h"
@@ -261,7 +262,7 @@ IHidServer::IHidServer(Core::System& system_, std::shared_ptr<ResourceManager> r
         {3113, &IHidServer::StubReplyZeroed, "Unknown3113"},
         {3114, &IHidServer::StubReplyZeroed, "Unknown3114"},
         {3130, &IHidServer::StubReplyZeroed, "Unknown3130"},
-        {3131, &IHidServer::StubReplyZeroed, "Unknown3131"},
+        {3131, C<&IHidServer::FinalizeNmouse>, "FinalizeNmouse"},
         {3132, &IHidServer::StubReplyZeroed, "Unknown3132"},
         {3133, &IHidServer::StubReplyZeroed, "Unknown3133"},
         {3134, &IHidServer::StubReplyZeroed, "Unknown3134"},
@@ -269,7 +270,7 @@ IHidServer::IHidServer(Core::System& system_, std::shared_ptr<ResourceManager> r
         {3136, &IHidServer::StubReplyZeroed, "Unknown3136"},
         {3137, &IHidServer::StubReplyZeroed, "Unknown3137"},
         {3138, &IHidServer::StubReplyZeroed, "Unknown3138"},
-        {3139, &IHidServer::StubReplyZeroed, "Unknown3139"},
+        {3139, C<&IHidServer::InitializeNmouse>, "InitializeNmouse"},
         {3140, &IHidServer::StubReplyZeroed, "Unknown3140"},
         {3141, &IHidServer::StubReplyZeroed, "Unknown3141"},
         {3142, &IHidServer::StubReplyZeroed, "Unknown3142"},
@@ -1248,6 +1249,27 @@ Result IHidServer::InitializeSevenSixAxisSensor(ClientAppletResourceUserId aruid
 Result IHidServer::FinalizeSevenSixAxisSensor(ClientAppletResourceUserId aruid) {
     LOG_WARNING(Service_HID, "(STUBBED) called, applet_resource_user_id={}", aruid.pid);
 
+    R_SUCCEED();
+}
+
+Result IHidServer::InitializeNmouse(u8 pointer_type, s32 width, s32 height, u32 unknown,
+                                    ClientAppletResourceUserId aruid, u64 t_mem_size,
+                                    InCopyHandle<Kernel::KTransferMemory> t_mem) {
+    LOG_INFO(Service_HID,
+             "called, pointer_type={}, width={}, height={}, unknown={}, t_mem_size={:#x}, "
+             "applet_resource_user_id={}",
+             pointer_type, width, height, unknown, t_mem_size, aruid.pid);
+
+    GetResourceManager()->GetNmouse()->Initialize(t_mem->GetSourceAddress(),
+                                                  std::min<u64>(t_mem_size, t_mem->GetSize()),
+                                                  t_mem->GetOwner(), width, height);
+    R_SUCCEED();
+}
+
+Result IHidServer::FinalizeNmouse(ClientAppletResourceUserId aruid) {
+    LOG_INFO(Service_HID, "called, applet_resource_user_id={}", aruid.pid);
+
+    GetResourceManager()->GetNmouse()->Finalize();
     R_SUCCEED();
 }
 
