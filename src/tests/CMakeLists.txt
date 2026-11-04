@@ -114,6 +114,7 @@ add_executable(tests
     core/priority_queue.cpp
     core/vfs_vector.cpp
     core/internal_network/network.cpp
+    video_core/aftermath_dump.cpp
     video_core/memory_tracker.cpp
     video_core/h264_packet.cpp
     video_core/nx2_gpu_mapping.cpp
