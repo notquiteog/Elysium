@@ -14,18 +14,18 @@
 namespace Common::FS {
 
 enum class EdenPath {
-    EdenDir,        // Where yuzu stores its data.
-    AmiiboDir,      // Where Amiibo backups are stored.
-    CacheDir,       // Where cached filesystem data is stored.
-    ConfigDir,      // Where config files are stored.
-    CrashDumpsDir,  // Where crash dumps are stored.
-    DumpDir,        // Where dumped data is stored.
-    KeysDir,        // Where key files are stored.
-    LoadDir,        // Where cheat/mod files are stored.
-    LogDir,         // Where log files are stored.
-    LosslessDir,    // Where the user-supplied Lossless Scaling library is stored.
-    NANDDir,        // Where the emulated NAND is stored.
-    PlayTimeDir,    // Where play time data is stored.
+    EdenDir,       // Where yuzu stores its data.
+    AmiiboDir,     // Where Amiibo backups are stored.
+    CacheDir,      // Where cached filesystem data is stored.
+    ConfigDir,     // Where config files are stored.
+    CrashDumpsDir, // Where crash dumps are stored.
+    DumpDir,       // Where dumped data is stored.
+    KeysDir,       // Where key files are stored.
+    LoadDir,       // Where cheat/mod files are stored.
+    LogDir,        // Where log files are stored.
+    LosslessDir,   // Where the user-supplied Lossless Scaling library is stored.
+    NANDDir,       // Where the emulated NAND is stored.
+    PlayTimeDir,   // Where play time data is stored.
     PostPresetDir,
     PostShaderDir,  // Where user post-processing shaders are stored.
     SaveDir,        // Where save data is stored.
@@ -40,6 +40,10 @@ enum class EdenPath {
 
 // migration/compat dirs
 enum EmuPath {
+    LegacyEdenDir,
+    LegacyEdenConfigDir,
+    LegacyEdenCacheDir,
+
     CitronDir,
     CitronConfigDir,
     CitronCacheDir,
@@ -370,7 +374,8 @@ enum class DirectorySeparator {
 }
 
 // Gets the extension of the filename
-[[nodiscard]] inline std::string_view GetExtensionFromFilename(const std::string_view name) noexcept {
+[[nodiscard]] inline std::string_view GetExtensionFromFilename(
+    const std::string_view name) noexcept {
     if (auto const index = name.rfind('.'); index != std::string_view::npos)
         return name.substr(index + 1);
     return {};
