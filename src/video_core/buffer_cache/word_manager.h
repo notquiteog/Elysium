@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+#include <boost/container/small_vector.hpp>
+
 #include "common/alignment.h"
 #include "common/common_funcs.h"
 #include "common/common_types.h"
@@ -39,7 +41,8 @@ enum class Type {
 
 template <class DeviceTracker, size_t stack_words, size_t size_bytes>
 struct WordManager {
-    using CollectedRanges = std::vector<std::pair<VAddr, size_t>>;
+    /// Pages whose tracking changes in one call: a few runs, kept off the heap.
+    using CollectedRanges = boost::container::small_vector<std::pair<VAddr, size_t>, 16>;
 
     static constexpr size_t num_words = Common::DivCeil(size_bytes, BYTES_PER_WORD);
     static_assert(num_words <= 64, "clean_words holds a bit per word");
@@ -293,7 +296,7 @@ struct WordManager {
         if (ranges.empty())
             return;
         std::sort(ranges.begin(), ranges.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-        if (!Nx2Perf::Verify()) {
+        if (Nx2Perf::Enabled() && !Nx2Perf::Verify()) {
             CoalesceInPlace(ranges);
             tracker->UpdatePagesCachedBatch(
                 std::span<const std::pair<VAddr, size_t>>(ranges.data(), ranges.size()), delta);
@@ -315,12 +318,14 @@ struct WordManager {
             }
         }
         coalesced.emplace_back(cur_addr, cur_size);
-        CoalesceInPlace(ranges);
-        static std::atomic<u32> logged{};
-        if (!std::ranges::equal(ranges, coalesced) &&
-            logged.fetch_add(1, std::memory_order_relaxed) < 64) {
-            LOG_ERROR(HW_GPU, "Nx2Perf texture-writes: tracker runs from {:#x} coalesced differently",
-                      coalesced.front().first);
+        if (Nx2Perf::Enabled()) {
+            CoalesceInPlace(ranges);
+            static std::atomic<u32> logged{};
+            if (!std::ranges::equal(ranges, coalesced) &&
+                logged.fetch_add(1, std::memory_order_relaxed) < 64) {
+                LOG_ERROR(HW_GPU, "Nx2Perf texture-writes: tracker runs from {:#x} coalesced differently",
+                          coalesced.front().first);
+            }
         }
         // Use batch API to reduce lock acquisitions and contention.
         tracker->UpdatePagesCachedBatch(coalesced, delta);
