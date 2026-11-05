@@ -910,20 +910,6 @@ private:
 
     // Needs m_region_mutex.
     std::optional<u64> BackGpuOnlyRegion(u64 gpu_address, u64 size) {
-        // A title may create a region again from the same start with another size (Mario Kart
-        // World: 300 MB, 600 MB, 1 GB at one address) without destroying it. Overwriting the entry
-        // kept the old backing mapped and its pages out of the pool for good: release it as 215
-        // does, once the GPU thread is past it.
-        if (const auto it = m_gpu_only_regions.find(gpu_address); it != m_gpu_only_regions.end()) {
-            auto& registry = Nvidia::Devices::Nx2GpuMemoryRegistry::Get();
-            registry.Unmap(gpu_address, it->second.size);
-            auto done = std::make_shared<std::atomic<bool>>(false);
-            registry.ReleaseBacking(it->second.cpu_address, it->second.size, [&sys = system, done] {
-                GpuCommands::Run(sys.GPU(), [done] { done->store(true, std::memory_order_release); });
-            });
-            m_released_regions.push_back({std::move(it->second), done});
-            m_gpu_only_regions.erase(it);
-        }
         auto backing = AllocateGpuOnlyBacking(size, true, false);
         if (!backing) {
             return std::nullopt;
