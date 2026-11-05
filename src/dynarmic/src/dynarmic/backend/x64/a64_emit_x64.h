@@ -88,12 +88,13 @@ public:
         u32 rip;
         u32 resume_rip;
         u32 callback;
-        u32 inst_name : 31;
+        u32 inst_name : 30;
         u32 recompile : 1;
+        u32 read : 1; ///< A plain read (see UserConfig::recompile_on_fastmem_read_fault)
         IR::LocationDescriptor location;
     };
     std::optional<DoNotFastmemMarker> ShouldFastmem(A64EmitContext& ctx, IR::Inst* inst) const;
-    void AddFastmemPatch(CodePtr location, CodePtr resume_location, void (*callback)(), const DoNotFastmemMarker& marker, bool recompile);
+    void AddFastmemPatch(CodePtr location, CodePtr resume_location, void (*callback)(), const DoNotFastmemMarker& marker, bool recompile, bool read = false);
     FakeCall FastmemCallback(u64 rip);
 
     // Memory access helpers

@@ -30,7 +30,7 @@ std::optional<AxxEmitX64::DoNotFastmemMarker> AxxEmitX64::ShouldFastmem(AxxEmitC
     return marker;
 }
 
-void AxxEmitX64::AddFastmemPatch(CodePtr location, CodePtr resume_location, void (*callback)(), const DoNotFastmemMarker& marker, bool recompile) {
+void AxxEmitX64::AddFastmemPatch(CodePtr location, CodePtr resume_location, void (*callback)(), const DoNotFastmemMarker& marker, bool recompile, bool read) {
     const u64 base = std::bit_cast<u64>(code.getCode());
     const auto offset = [base](u64 address) {
         ASSERT(address >= base && address - base <= UINT32_MAX);
@@ -42,10 +42,12 @@ void AxxEmitX64::AddFastmemPatch(CodePtr location, CodePtr resume_location, void
         .callback = offset(std::bit_cast<u64>(callback)),
         .inst_name = 0,
         .recompile = 0,
+        .read = 0,
         .location = std::get<0>(marker),
     };
     info.inst_name = std::get<1>(marker);
     info.recompile = recompile ? 1 : 0;
+    info.read = read ? 1 : 0;
     // Code is emitted in address order; only a block's deferred fallbacks can come after a later
     // access of the same block.
     auto it = fastmem_patch_info.end();
@@ -70,7 +72,12 @@ FakeCall AxxEmitX64::FastmemCallback(u64 rip_) {
             .call_rip = base + iter->callback,
             .ret_rip = base + iter->resume_rip,
         };
-        if (iter->recompile) {
+        // A host whose read faults are one-off (pages it unprotects on the first read) can keep
+        // the read on fastmem; recompiled, it would take the memory callbacks for good.
+        const bool recompile = iter->recompile &&
+                               !(iter->read && conf.recompile_on_fastmem_read_fault != nullptr &&
+                                 !conf.recompile_on_fastmem_read_fault());
+        if (recompile) {
             const DoNotFastmemMarker marker{iter->location, static_cast<unsigned>(iter->inst_name)};
             do_not_fastmem.insert(marker);
             InvalidateBasicBlocks({std::get<0>(marker)});
@@ -132,7 +139,7 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
             code.L(*abort);
             code.call(wrapped_fn);
 
-            AddFastmemPatch(location, code.getCurr(), wrapped_fn, *fastmem_marker, conf.recompile_on_fastmem_failure);
+            AddFastmemPatch(location, code.getCurr(), wrapped_fn, *fastmem_marker, conf.recompile_on_fastmem_failure, true);
 
             EmitCheckMemoryAbort(ctx, inst, end);
             code.jmp(*end, code.T_NEAR);

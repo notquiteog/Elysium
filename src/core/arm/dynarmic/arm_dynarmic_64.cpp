@@ -17,6 +17,7 @@
 #include "core/core_timing.h"
 #include "core/hle/kernel/k_process.h"
 #include "dynarmic/interface/A64/config.h"
+#include "video_core/nx2.h"
 
 namespace Core {
 
@@ -322,6 +323,15 @@ void ArmDynarmic64::MakeJit(Common::PageTable* page_table, std::size_t address_s
             std::nullopt;
         config.fastmem_address_space_bits = std::uint32_t(address_space_bits);
         config.silently_mirror_fastmem = false;
+        // With reactive flushing off, a Switch 2 title's reads fault only on read traps (pages
+        // the GPU wrote, protected until their first read): once per GPU write. Keep such a
+        // read on fastmem. Recompiled, it took the memory callbacks for good, e.g. a shared
+        // memcpy that once copied GPU output, on every later call. With reactive flushing every
+        // GPU-cached page faults on each read, so reads still recompile there.
+        config.recompile_on_fastmem_read_fault = [] {
+            return Settings::values.use_reactive_flushing.GetValue() ||
+                   !Tegra::g_nx2_ampere.load(std::memory_order_relaxed);
+        };
 
         config.fastmem_exclusive_access = config.fastmem_pointer != std::nullopt;
         config.recompile_on_exclusive_fastmem_failure = true;

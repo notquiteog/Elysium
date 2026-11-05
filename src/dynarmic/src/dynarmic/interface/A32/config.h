@@ -211,6 +211,12 @@ struct UserConfig {
     /// accesses will hit the memory callbacks.
     bool recompile_on_fastmem_failure = true;
 
+    /// Asked when a plain read faults where recompile_on_fastmem_failure would recompile it:
+    /// returning false keeps the read on fastmem. For hosts whose read faults are one-off (pages
+    /// they unprotect on the first read), where a recompiled read would take the memory
+    /// callbacks for good (a shared memcpy, every later call). Null: always recompile.
+    bool (*recompile_on_fastmem_read_fault)() = nullptr;
+
     /// Determines if we should use the above fastmem_pointer for exclusive reads and
     /// writes. On x64, dynarmic currently relies on x64 cmpxchg semantics which may not
     /// provide fully accurate emulation.

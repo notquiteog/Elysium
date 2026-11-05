@@ -267,6 +267,12 @@ struct UserConfig {
     /// accesses will hit the memory callbacks.
     bool recompile_on_fastmem_failure = true;
 
+    /// Asked when a plain read faults where recompile_on_fastmem_failure would recompile it:
+    /// returning false keeps the read on fastmem. For hosts whose read faults are one-off (pages
+    /// they unprotect on the first read), where a recompiled read would take the memory
+    /// callbacks for good (a shared memcpy, every later call). Null: always recompile.
+    bool (*recompile_on_fastmem_read_fault)() = nullptr;
+
     /// Determines what happens if the guest accesses an entry that is off the end of the
     /// fastmem arena. If true, Dynarmic will silently mirror fastmem's address space. If
     /// false, accessing memory outside of fastmem bounds will result in a call to the
