@@ -290,6 +290,11 @@ void IPlatformServiceManager::GetBuiltInFontSharedMemory(HLERequestContext& ctx)
                 impl->builtin_font_memory_size);
     if (impl->builtin_font_memory == nullptr) {
         auto* const memory = Kernel::KSharedMemory::Create(kernel);
+        if (memory == nullptr) {
+            IPC::ResponseBuilder rb{ctx, 2};
+            rb.Push(Kernel::ResultOutOfResource);
+            return;
+        }
         if (const Result result = memory->Initialize(kernel, system.DeviceMemory(), nullptr,
                                                      Kernel::Svc::MemoryPermission::None,
                                                      Kernel::Svc::MemoryPermission::Read,
