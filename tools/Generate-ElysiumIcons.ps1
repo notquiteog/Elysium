@@ -1,4 +1,4 @@
-param([string]$Source = "$PSScriptRoot/../dist/branding/lichii_icon.png")
+param([string]$Source = "$PSScriptRoot/../dist/branding/elysium_icon.png")
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $dist = [IO.Path]::GetFullPath("$PSScriptRoot/../dist")
@@ -27,7 +27,7 @@ function Write-BigEndian32($stream, [uint32]$value) {
 try {
     $sizes = @(16, 24, 32, 48, 64, 128, 256)
     $frames = @($sizes | ForEach-Object { ,(Get-IconPng $_) })
-    $stream = [IO.File]::Create("$dist/lichii.ico")
+    $stream = [IO.File]::Create("$dist/elysium.ico")
     $writer = New-Object IO.BinaryWriter($stream)
     try {
         $writer.Write([uint16]0); $writer.Write([uint16]1); $writer.Write([uint16]$sizes.Count)
@@ -42,10 +42,10 @@ try {
         foreach ($frame in $frames) { $writer.Write([byte[]]$frame) }
     } finally { $writer.Dispose(); $stream.Dispose() }
     $png = Get-IconPng 256
-    [IO.File]::WriteAllBytes("$dist/lichii.png", $png)
+    [IO.File]::WriteAllBytes("$dist/elysium.png", $png)
     $types = @('ic07', 'ic08', 'ic09', 'ic10')
     $frames = @(128, 256, 512, 1024 | ForEach-Object { ,(Get-IconPng $_) })
-    $stream = [IO.File]::Create("$dist/lichii.icns")
+    $stream = [IO.File]::Create("$dist/elysium.icns")
     try {
         $magic = [Text.Encoding]::ASCII.GetBytes('icns')
         $stream.Write($magic, 0, 4)

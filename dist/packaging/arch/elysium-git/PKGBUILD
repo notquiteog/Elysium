@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-pkgname=lichii-git
+pkgname=elysium-git
 pkgver=0.r0.g0000000
 pkgrel=1
 pkgdesc='Nintendo Switch emulator (development branch)'
 arch=('x86_64')
-url='https://github.com/zortos293/lichii'
+url='https://github.com/notquiteog/Elysium'
 license=('GPL-3.0-or-later')
 depends=(
   'enet'
@@ -41,18 +41,18 @@ makedepends=(
 optdepends=(
   'qt6-wayland: native Wayland support'
 )
-provides=('lichii')
-conflicts=('lichii')
-source=("lichii::git+https://github.com/zortos293/lichii.git#branch=nx2")
+provides=('elysium')
+conflicts=('elysium')
+source=("elysium::git+https://github.com/notquiteog/Elysium.git#branch=nx2")
 sha256sums=('SKIP')
 
 pkgver() {
-  cd "$srcdir/lichii"
+  cd "$srcdir/elysium"
   printf '0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
 }
 
 build() {
-  cmake -S "$srcdir/lichii" -B "$srcdir/build" -G Ninja \
+  cmake -S "$srcdir/elysium" -B "$srcdir/build" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_INSTALL_LIBDIR=lib \

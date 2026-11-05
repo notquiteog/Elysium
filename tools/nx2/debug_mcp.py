@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""MCP server (stdio) for Lichii's in-process debug server (docs/nx2/debug-mcp.md).
+"""MCP server (stdio) for Elysium's in-process debug server (docs/nx2/debug-mcp.md).
 
-Run Lichii with EDEN_NX2_DEBUG_SERVER=127.0.0.1:6545, then register this script as a stdio MCP
+Run Elysium with EDEN_NX2_DEBUG_SERVER=127.0.0.1:6545, then register this script as a stdio MCP
 server for the agent:  python3 -I tools/nx2/debug_mcp.py [--server 127.0.0.1:6545]
 or run one request from a shell:
   python3 -I tools/nx2/debug_mcp.py --call '{"method":"screenshot","params":{}}' --out shot.png
@@ -265,7 +265,7 @@ class Emulator:
                 if isinstance(error, socket.timeout):
                     raise EmulatorError(f"no answer within {timeout} s") from error
                 raise EmulatorError(
-                    f"nothing listens on {self.host}:{self.port}: start Lichii with "
+                    f"nothing listens on {self.host}:{self.port}: start Elysium with "
                     f"EDEN_NX2_DEBUG_SERVER={self.host}:{self.port} and boot a game") from error
             except OSError as error:
                 # A stale connection from an earlier boot: reconnect once.
@@ -353,7 +353,7 @@ class Adapter:
             reply["result"] = {
                 "protocolVersion": wanted if wanted in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0],
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "lichii-debug", "version": "1"},
+                "serverInfo": {"name": "elysium-debug", "version": "1"},
             }
         elif method == "ping":
             reply["result"] = {}
@@ -409,7 +409,7 @@ def call_once(adapter, request_text, out, stdout):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--server", default=os.environ.get("LICHII_DEBUG_SERVER", DEFAULT_SERVER),
+    parser.add_argument("--server", default=os.environ.get("ELYSIUM_DEBUG_SERVER", DEFAULT_SERVER),
                         help=f"host:port of EDEN_NX2_DEBUG_SERVER (default {DEFAULT_SERVER})")
     parser.add_argument("--call", metavar="JSON",
                         help='run one request and exit, e.g. \'{"method":"screenshot","params":{}}\'')

@@ -6,7 +6,7 @@ Keep comments to a reasonable level. Do not overexplain or add/remove comments f
 
 ## Game bug reports
 
-Users report game bugs with Lichii logs (`eden_log.txt`, `eden_log.txt.old`). Each `Booting game: <program id>` line starts a session; the build is on the first line (`Lichii Version: ... | nx2-<sha>`). Known program ids:
+Users report game bugs with Elysium logs (`eden_log.txt`, `eden_log.txt.old`). Each `Booting game: <program id>` line starts a session; the build is on the first line (`Elysium Version: ... | nx2-<sha>`). Known program ids:
 
 | Program id | Game |
 |---|---|
@@ -32,7 +32,7 @@ Add ids here when a report identifies a new game.
 
 ## Before writing a fix
 
-Lichii is a fork of [Eglantine](https://github.com/Djihads80/Eglantine). Do not guess, and do not rewrite a fix upstream already has.
+Elysium is a fork of [Lichii](https://github.com/zortos293/Lichii), itself a fork of [Eglantine](https://github.com/Djihads80/Eglantine). Do not guess, and do not rewrite a fix upstream already has.
 
 1. `git remote add upstream https://github.com/Djihads80/Eglantine.git && git fetch upstream`.
 2. Check `upstream/nx2`, open and closed PRs, unmerged branches, and issues for the game and symptom (`gh pr list -R Djihads80/Eglantine --state all`, `gh issue list -R Djihads80/Eglantine --state all`, `gh pr diff <n>`). Read the diffs, not only the titles.
