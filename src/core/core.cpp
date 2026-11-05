@@ -172,6 +172,14 @@ bool IsSwitch2Program(const FileSys::VirtualFile& file, u64 program_id, std::siz
         return npdm != nullptr && metadata.Load(npdm) == Loader::ResultStatus::Success &&
                metadata.IsSwitch2();
     }
+    // An installed or loose program NCA keeps the NPDM in its own ExeFS.
+    if (type == Loader::FileType::NCA) {
+        const FileSys::NCA nca{file};
+        const auto exefs = nca.GetStatus() == Loader::ResultStatus::Success ? nca.GetExeFS() : nullptr;
+        const auto npdm = exefs != nullptr ? exefs->GetFile("main.npdm") : nullptr;
+        return npdm != nullptr && metadata.Load(npdm) == Loader::ResultStatus::Success &&
+               metadata.IsSwitch2();
+    }
     const auto dir = file != nullptr ? file->GetContainingDirectory() : nullptr;
     const auto npdm = dir != nullptr ? dir->GetFile("main.npdm") : nullptr;
     return npdm != nullptr && metadata.Load(npdm) == Loader::ResultStatus::Success &&
