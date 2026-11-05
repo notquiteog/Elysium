@@ -660,6 +660,10 @@ struct Values {
                                           true,
                                           true};
 
+    /// Built-in code patch for titles whose frame-rate controller can be held at 30 fps
+    /// (FileSys::PatchManager, BUILTIN_PATCHES). Ignored for other titles and builds.
+    SwitchableSetting<bool> fps30_patch{linkage, false, "fps30_patch", Category::System};
+
     SwitchableSetting<bool> skip_cpu_inner_invalidation{linkage,
                                                         false,
                                                         "skip_cpu_inner_invalidation",

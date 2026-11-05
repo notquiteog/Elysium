@@ -53,6 +53,8 @@ struct BuiltinPatch {
     size_t module_offset;
     u32 original;
     u32 replacement;
+    /// Applied only with Settings::fps30_patch on, instead of being listed as an add-on.
+    bool fps30_lock{};
 };
 
 constexpr std::array BUILTIN_PATCHES{
@@ -67,7 +69,24 @@ constexpr std::array BUILTIN_PATCHES{
         .original = 0x360041E8,    // tbz w8, #0, 0x80640c
         .replacement = 0x1400020F, // b 0x80640c
     },
+    // Donkey Kong Bananza 1.1.0: its frame-rate controller picks the swap interval as
+    // clamp(measured vblanks + 1, min, max) and steps the game by 60 / interval; picking 2
+    // holds it at 30 fps at full speed.
+    BuiltinPatch{
+        .name = "Lock to 30 FPS (built-in)",
+        .title_id = 0x040074A01BF12000,
+        .module = "main",
+        .build_id = "E25C90C1C136638885659FD55BF8A03B3403489D",
+        .module_offset = 0x204AC4,
+        .original = 0x1A89B10A,    // csel w10, w8, w9, lt
+        .replacement = 0x5280004A, // mov w10, #2
+        .fps30_lock = true,
+    },
 };
+
+bool BuiltinPatchSelected(const BuiltinPatch& patch) {
+    return !patch.fps30_lock || Settings::values.fps30_patch.GetValue();
+}
 
 enum class TitleVersionFormat : u8 {
     ThreeElements, ///< vX.Y.Z
@@ -489,10 +508,11 @@ std::vector<u8> PatchManager::PatchNSO(const std::vector<u8>& nso, const std::st
 
     const auto disabled = GetDisabledAddons();
     for (const auto& patch : BUILTIN_PATCHES) {
-        if (patch.title_id != title_id || patch.module != name) {
+        if (patch.title_id != title_id || patch.module != name || !BuiltinPatchSelected(patch)) {
             continue;
         }
-        if (std::find(disabled.cbegin(), disabled.cend(), patch.name) != disabled.cend()) {
+        if (!patch.fps30_lock &&
+            std::find(disabled.cbegin(), disabled.cend(), patch.name) != disabled.cend()) {
             LOG_INFO(Loader, "    - Skipping \"{}\": disabled in Add-Ons", patch.name);
             continue;
         }
@@ -544,7 +564,8 @@ bool PatchManager::HasNSOPatch(const BuildID& build_id_, std::string_view name) 
     LOG_INFO(Loader, "Querying NSO patch existence for build_id={}, name={}", build_id, name);
 
     if (std::ranges::any_of(BUILTIN_PATCHES, [&](const BuiltinPatch& patch) {
-            return patch.title_id == title_id && patch.module == name;
+            return patch.title_id == title_id && patch.module == name &&
+                   BuiltinPatchSelected(patch);
         })) {
         return true;
     }
@@ -1085,7 +1106,8 @@ std::vector<Patch> PatchManager::GetPatches(VirtualFile update_raw) const {
     }
 
     for (const auto& patch : BUILTIN_PATCHES) {
-        if (patch.title_id != title_id) {
+        // The 30 FPS lock follows its setting, not the add-on list.
+        if (patch.title_id != title_id || patch.fps30_lock) {
             continue;
         }
         const auto patch_disabled =

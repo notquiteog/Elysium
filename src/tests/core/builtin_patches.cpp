@@ -38,6 +38,16 @@ constexpr u32 TbzInstruction = 0x360041E8;
 constexpr u32 BranchInstruction = 0x1400020F;
 constexpr u32 NopInstruction = 0xD503201F;
 
+constexpr u64 BananzaTitleId = 0x040074A01BF12000;
+constexpr std::string_view Fps30Lock = "Lock to 30 FPS (built-in)";
+constexpr FileSys::PatchManager::BuildID BananzaBuildId{
+    0xE2, 0x5C, 0x90, 0xC1, 0xC1, 0x36, 0x63, 0x88, 0x85, 0x65,
+    0x9F, 0xD5, 0x5B, 0xF8, 0xA0, 0x3B, 0x34, 0x03, 0x48, 0x9D,
+};
+constexpr size_t Fps30Offset = sizeof(Loader::NSOHeader) + 0x204AC4;
+constexpr u32 CselInstruction = 0x1A89B10A;   // csel w10, w8, w9, lt
+constexpr u32 MovTwoInstruction = 0x5280004A; // mov w10, #2
+
 constexpr std::array<std::pair<Common::FS::EdenPath, const char*>, 4> TestDirectories{{
     {Common::FS::EdenPath::NANDDir, "nand"},
     {Common::FS::EdenPath::SDMCDir, "sdmc"},
@@ -71,6 +81,8 @@ public:
         }
         const auto title_dir = root / "load" / fmt::format("{:016X}", OcarinaTitleId);
         std::filesystem::create_directories(title_dir);
+        std::filesystem::create_directories(root / "load" /
+                                            fmt::format("{:016X}", BananzaTitleId));
         if (user_mod_word) {
             const auto exefs = title_dir / "UserMod" / "exefs";
             std::filesystem::create_directories(exefs);
@@ -86,6 +98,8 @@ public:
             Common::FS::SetEdenPath(TestDirectories[i].first, previous[i]);
         }
         Settings::values.disabled_addons.erase(OcarinaTitleId);
+        Settings::values.disabled_addons.erase(BananzaTitleId);
+        Settings::values.fps30_patch.SetValue(false);
         std::error_code error;
         std::filesystem::remove_all(root, error);
     }
@@ -127,6 +141,21 @@ u32 WordAt(const std::vector<u8>& nso) {
 u32 PatchMain(PatchManagerTestContext& context, const FileSys::PatchManager::BuildID& build_id,
               u32 word, const std::string& name = "main", u64 title_id = OcarinaTitleId) {
     return WordAt(context.Manager(title_id).PatchNSO(MakeMain(build_id, word), name));
+}
+
+u32 PatchBananzaMain(PatchManagerTestContext& context,
+                     const FileSys::PatchManager::BuildID& build_id, u32 word) {
+    std::vector<u8> nso(Fps30Offset + 0x100);
+    Loader::NSOHeader header{};
+    header.magic = Common::MakeMagic('N', 'S', 'O', '0');
+    header.build_id = build_id;
+    std::memcpy(nso.data(), &header, sizeof(header));
+    std::memcpy(nso.data() + Fps30Offset, &word, sizeof(word));
+    const auto patched = context.Manager(BananzaTitleId).PatchNSO(nso, "main");
+    REQUIRE(patched.size() >= Fps30Offset + sizeof(u32));
+    u32 result;
+    std::memcpy(&result, patched.data() + Fps30Offset, sizeof(result));
+    return result;
 }
 
 } // Anonymous namespace
@@ -203,4 +232,38 @@ TEST_CASE("Built-in Max Resolution patch is listed and loaded for Ocarina's main
 
     Settings::values.disabled_addons[OcarinaTitleId] = {std::string{MaxResolution}};
     REQUIRE_FALSE(builtin_enabled());
+}
+
+TEST_CASE("Built-in 30 FPS lock follows its setting, build id and original word",
+          "[patch_manager]") {
+    PatchManagerTestContext context;
+
+    SECTION("Off by default") {
+        REQUIRE(PatchBananzaMain(context, BananzaBuildId, CselInstruction) == CselInstruction);
+        REQUIRE_FALSE(context.Manager(BananzaTitleId).HasNSOPatch(BananzaBuildId, "main"));
+    }
+
+    SECTION("Turned on, the matching word is patched") {
+        Settings::values.fps30_patch.SetValue(true);
+        REQUIRE(context.Manager(BananzaTitleId).HasNSOPatch(BananzaBuildId, "main"));
+        REQUIRE(PatchBananzaMain(context, BananzaBuildId, CselInstruction) == MovTwoInstruction);
+    }
+
+    SECTION("Wrong original word skips") {
+        Settings::values.fps30_patch.SetValue(true);
+        REQUIRE(PatchBananzaMain(context, BananzaBuildId, NopInstruction) == NopInstruction);
+    }
+
+    SECTION("Other build id skips") {
+        Settings::values.fps30_patch.SetValue(true);
+        auto other = BananzaBuildId;
+        other[0] ^= 1;
+        REQUIRE(PatchBananzaMain(context, other, CselInstruction) == CselInstruction);
+    }
+
+    SECTION("Not listed as an add-on") {
+        Settings::values.fps30_patch.SetValue(true);
+        const auto patches = context.Manager(BananzaTitleId).GetPatches();
+        REQUIRE(std::ranges::find(patches, Fps30Lock, &FileSys::Patch::name) == patches.end());
+    }
 }
