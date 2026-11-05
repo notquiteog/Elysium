@@ -274,6 +274,9 @@ private:
     MacroEngine& FrontMacroEngine(FrontState& state);
     std::span<u32> FrontMacroPositions(FrontState& state);
     void FrontRunMacro(Core::System& system, VideoCommon::GpuSplit& split, FrontState& state);
+    /// Tells the split a semaphore release just sent writes a known payload.
+    void FrontNoteRelease(VideoCommon::GpuSplit& split, const FrontState& state,
+                          u32 control) const;
     std::unique_ptr<FrontState> front;
     bool front_macros{}; ///< The front owns the macro code and bindings (the back skips them)
 
