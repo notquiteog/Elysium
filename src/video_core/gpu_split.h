@@ -115,7 +115,7 @@ public:
         }
         Commit(words);
         if (engine->memory_write_mask[method]) {
-            last_memory_write_position = write_position;
+            NoteMethodWrite(engine, method);
         }
     }
     void MultiMethod(Tegra::Engines::EngineInterface* engine, u32 method, const u32* words,
@@ -128,7 +128,7 @@ public:
                    (u64{argument} << 32);
         Commit(1);
         if (engine->memory_write_mask[method]) {
-            last_memory_write_position = write_position;
+            NoteMethodWrite(engine, method);
         }
     }
 
@@ -186,6 +186,13 @@ public:
     /// Deferred work that can write memory was just sent (puller semaphore releases, maps).
     void NoteMemoryWrite() {
         last_memory_write_position = write_position;
+        last_memory_write_method = DeferredWrite;
+    }
+    /// A method that writes memory was just sent; the method is kept for the GPU profile.
+    void NoteMethodWrite(const Tegra::Engines::EngineInterface* engine, u32 method) {
+        last_memory_write_position = write_position;
+        // Engines all of whose methods write (compute, DMA, inline-to-memory, 2D) mark method 0.
+        last_memory_write_method = engine->memory_write_mask[0] ? OtherEngineWrite : method;
     }
     /// For the front's macro memory reads (MME DMA): waits until the back executed the methods
     /// that write memory in command order (memory_write_mask, NoteMemoryWrite), the compute and
@@ -265,6 +272,10 @@ private:
     u64 last_writer_position{};
     u64 last_sync_position{};
     u64 last_memory_write_position{};
+    static constexpr u32 DeferredWrite = ~0U;
+    static constexpr u32 OtherEngineWrite = ~0U - 1;
+    /// The 3D method behind last_memory_write_position, or one of the two values above.
+    u32 last_memory_write_method{DeferredWrite};
     u64 published_local{};
     u64 consumed_cache{};
     /// Words between publishes: small right after a drain, while the back has nothing to do.

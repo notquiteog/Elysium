@@ -100,10 +100,28 @@ inline u64 Ticks() {
 #endif
 }
 
+/// What a front macro memory read (MME DMA) had to wait for: the newest unexecuted writer.
+enum class DmaWaitCause : u32 {
+    ComputeCopy,       ///< Compute or copy work
+    HostSync,          ///< The work before a host-level wait
+    ConstBufferUpload, ///< A 3D constant buffer upload (const_buffer.buffer)
+    InlineUpload,      ///< 3D inline data
+    Macro3D,           ///< A 3D macro register
+    Other3D,           ///< Another memory-writing 3D method (reports, DMA launch, sync)
+    OtherEngine,       ///< A compute, DMA, inline-to-memory or 2D engine method
+    Deferred,          ///< Puller semaphore releases and maps
+    Count,
+};
+
+inline constexpr std::array<const char*, static_cast<size_t>(DmaWaitCause::Count)>
+    dma_wait_cause_names{"compute/copy", "host sync",    "cbuf upload",  "inline upload",
+                         "3D macro",     "other 3D",     "other engine", "deferred"};
+
 struct ThreadData {
     std::array<u64, static_cast<size_t>(Zone::Count)> exclusive_ns{};
     std::array<u64, static_cast<size_t>(Zone::Count)> count{};
     std::array<u64, 8> counters{}; ///< See Counter
+    std::array<u64, static_cast<size_t>(DmaWaitCause::Count)> dma_wait_causes{};
     std::array<u64, static_cast<size_t>(DrainSite::Count)> drain_ns{};
     std::array<u64, static_cast<size_t>(DrainSite::Count)> drain_count{};
     u64 child_ns{};    ///< Time of the zones nested in the current one
@@ -226,6 +244,12 @@ inline void AddDrain(DrainSite site, u64 start) {
     }
 }
 
+inline void AddDmaWaitCause(DmaWaitCause cause) {
+    if (Enabled()) {
+        ++t_data.dma_wait_causes[static_cast<size_t>(cause)];
+    }
+}
+
 /// Called by the GPU thread (and the split's back thread) between commands: logs and resets
 /// the totals every 10 s.
 inline void Report(const char* thread_name = "GPU thread") {
@@ -287,6 +311,17 @@ inline void Report(const char* thread_name = "GPU thread") {
     if (!drains.empty()) {
         drains.pop_back();
         line += " | waits for the back by site:" + drains;
+    }
+    std::string causes;
+    for (size_t i = 0; i < data.dma_wait_causes.size(); ++i) {
+        if (data.dma_wait_causes[i] != 0) {
+            causes += fmt::format(" {} {:.0f}/s,", dma_wait_cause_names[i],
+                                  static_cast<double>(data.dma_wait_causes[i]) * 1e9 / window);
+        }
+    }
+    if (!causes.empty()) {
+        causes.pop_back();
+        line += " | macro dma reads waited for:" + causes;
     }
     if (cpu_now && data.cpu_start_ns && *cpu_now >= *data.cpu_start_ns) {
         line += fmt::format(" | host_cpu_busy_ms_per_s={:.3f} window_wall_ms={:.3f}",

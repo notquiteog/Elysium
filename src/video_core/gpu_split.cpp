@@ -247,6 +247,24 @@ bool GpuSplit::WaitForSync() {
 bool GpuSplit::WaitForMemoryWriters(DrainSite site) {
     const u64 target =
         std::max({last_writer_position, last_sync_position, last_memory_write_position});
+    if (Nx2Profile::Enabled() &&
+        consumed.load(std::memory_order_acquire) < std::min(target, write_position)) {
+        // What the read waits for: the newest of the three positions.
+        using Cause = Nx2Profile::DmaWaitCause;
+        Cause cause = Cause::HostSync;
+        if (target == last_memory_write_position) {
+            const u32 method = last_memory_write_method;
+            cause = method == DeferredWrite                ? Cause::Deferred
+                    : method == OtherEngineWrite           ? Cause::OtherEngine
+                    : method >= 0x8e4 && method < 0x8f4    ? Cause::ConstBufferUpload
+                    : method == 0x6d                       ? Cause::InlineUpload
+                    : method >= 0xe00                      ? Cause::Macro3D
+                                                           : Cause::Other3D;
+        } else if (target == last_writer_position) {
+            cause = Cause::ComputeCopy;
+        }
+        Nx2Profile::AddDmaWaitCause(cause);
+    }
     return WaitFor(std::min(target, write_position), site);
 }
 
@@ -327,7 +345,7 @@ void GpuSplit::MultiMethod(Tegra::Engines::EngineInterface* engine, u32 method, 
         methods_pending -= piece;
     }
     if (engine->memory_write_mask[method]) {
-        last_memory_write_position = write_position;
+        NoteMethodWrite(engine, method);
     }
 }
 
