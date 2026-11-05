@@ -292,15 +292,6 @@ void Puller::ProcessSemaphoreTriggerMethod(DmaPusher& dma_pusher) {
         if (acquire.Matches(ReadSemaphoreWord(dma_pusher, acquire.address))) {
             return;
         }
-        // A release the back already ran whose write only waits for the host GPU (delayed fences:
-        // Balanced/Accurate, Mario Tennis Fever's default) meets it as CanResumeAcquire would: go
-        // on instead of suspending the channel and reading the whole entry again on resume.
-        if (const auto device = dma_pusher.memory_manager.GpuToCpuAddress(acquire.address)) {
-            if (const auto pending = dma_pusher.rasterizer->PendingSemaphoreRelease(*device);
-                pending && acquire.Matches(*pending)) {
-                return;
-            }
-        }
         // Registered before the fences run, so a release among them that meets the value counts
         // even if a later one overwrites it.
         auto& waiters = Nx2SemaphoreWaiters::Get();
