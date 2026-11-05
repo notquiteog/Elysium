@@ -84,31 +84,16 @@ bool MetBeforeDrain(DmaPusher& dma_pusher, GPUVAddr address, u32 operation, u32 
     if (!enabled || !VideoCommon::GpuSplit::Get().Active()) {
         return false;
     }
+    const u32 current = dma_pusher.memory_manager.Read<u32>(address);
     // Puller::GpuSemaphoreOperation values.
-    const auto met = [operation, value](u32 current) {
-        switch (operation) {
-        case Nx2SemaphoreWaiters::AcquireGequal:
-            return current >= value;
-        case Nx2SemaphoreWaiters::AcquireEqual:
-            return current == value;
-        default:
-            return false;
-        }
-    };
-    if (met(dma_pusher.memory_manager.Read<u32>(address))) {
-        return true;
-    }
-    // Or by a release the back already ran whose write waits for the host GPU (delayed fences).
-    if (operation != Nx2SemaphoreWaiters::AcquireGequal &&
-        operation != Nx2SemaphoreWaiters::AcquireEqual) {
+    switch (operation) {
+    case Nx2SemaphoreWaiters::AcquireGequal:
+        return current >= value;
+    case Nx2SemaphoreWaiters::AcquireEqual:
+        return current == value;
+    default:
         return false;
     }
-    const auto device = dma_pusher.memory_manager.GpuToCpuAddress(address);
-    if (!device) {
-        return false;
-    }
-    const auto pending = dma_pusher.rasterizer->PendingSemaphoreRelease(*device);
-    return pending && met(*pending);
 }
 
 } // Anonymous namespace
