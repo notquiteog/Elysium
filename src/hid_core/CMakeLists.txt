@@ -74,6 +74,8 @@ add_library(hid_core STATIC
     resources/keyboard/keyboard_types.h
     resources/mouse/debug_mouse.cpp
     resources/mouse/debug_mouse.h
+    resources/mouse/jcms.cpp
+    resources/mouse/jcms.h
     resources/mouse/mouse.cpp
     resources/mouse/mouse.h
     resources/mouse/mouse_types.h

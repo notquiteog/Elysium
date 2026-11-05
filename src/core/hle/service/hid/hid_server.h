@@ -214,6 +214,11 @@ private:
                                         InCopyHandle<Kernel::KTransferMemory> t_mem_1,
                                         InCopyHandle<Kernel::KTransferMemory> t_mem_2);
     Result FinalizeSevenSixAxisSensor(ClientAppletResourceUserId aruid);
+    Result InitializeJcms(ClientAppletResourceUserId aruid, u64 t_mem_size,
+                          InCopyHandle<Kernel::KTransferMemory> t_mem);
+    Result FinalizeJcms(ClientAppletResourceUserId aruid);
+    Result StartJcms(u32 jcms_handle, ClientAppletResourceUserId aruid);
+    Result StopJcms(u32 jcms_handle, ClientAppletResourceUserId aruid);
     Result ResetSevenSixAxisSensorTimestamp(ClientAppletResourceUserId aruid);
     Result InitializeNmouse(u8 pointer_type, s32 width, s32 height, u32 unknown,
                             ClientAppletResourceUserId aruid, u64 t_mem_size,

@@ -606,16 +606,12 @@ void NPad::OnUpdate(Kernel::KernelCore& kernel, const Core::Timing::CoreTiming& 
                 npad->handheld_lifo.WriteNextEntry(pad_state);
                 break;
             case Core::HID::NpadStyleIndex::JoyconDual:
-                pad_state.connection_status.raw = 0;
-                pad_state.connection_status.is_connected.Assign(1);
-                if (controller.is_dual_left_connected) {
-                    pad_state.connection_status.is_left_connected.Assign(1);
-                    libnx_state.connection_status.is_left_connected.Assign(1);
-                }
-                if (controller.is_dual_right_connected) {
-                    pad_state.connection_status.is_right_connected.Assign(1);
-                    libnx_state.connection_status.is_right_connected.Assign(1);
-                }
+                // ponytail: one raw store; GCC 16 lost the conditional is_left_connected Assign
+                // when is_right_connected followed (sibling BitFields in the union), writing 0x11.
+                pad_state.connection_status.raw =
+                    1u | (controller.is_dual_left_connected ? 1u << 2 : 0u) |
+                    (controller.is_dual_right_connected ? 1u << 4 : 0u);
+                libnx_state.connection_status.raw = pad_state.connection_status.raw;
 
                 pad_state.sampling_number =
                     npad->joy_dual_lifo.ReadCurrentEntry().state.sampling_number + 1;

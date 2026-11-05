@@ -27,6 +27,7 @@
 #include "hid_core/resources/controller_base.h"
 #include "hid_core/resources/debug_pad/debug_pad.h"
 #include "hid_core/resources/keyboard/keyboard.h"
+#include "hid_core/resources/mouse/jcms.h"
 #include "hid_core/resources/mouse/mouse.h"
 #include "hid_core/resources/mouse/nmouse.h"
 #include "hid_core/resources/npad/npad.h"
@@ -256,10 +257,10 @@ IHidServer::IHidServer(Core::System& system_, std::shared_ptr<ResourceManager> r
         {3013, &IHidServer::StubReplyZeroed, "SetDebugPadGenericPadMap"}, //21.0.0+
         {3014, &IHidServer::StubReplyZeroed, "GetDebugPadKeyboardMap"}, //21.0.0+
         {3015, &IHidServer::StubReplyZeroed, "SetDebugPadKeyboardMap"}, //21.0.0+
-        {3110, &IHidServer::StubReplyZeroed, "Unknown3110"},
-        {3111, &IHidServer::StubReplyZeroed, "Unknown3111"},
-        {3112, &IHidServer::StubReplyZeroed, "Unknown3112"},
-        {3113, &IHidServer::StubReplyZeroed, "Unknown3113"},
+        {3110, C<&IHidServer::InitializeJcms>, "InitializeJcms"},
+        {3111, C<&IHidServer::FinalizeJcms>, "FinalizeJcms"},
+        {3112, C<&IHidServer::StartJcms>, "StartJcms"},
+        {3113, C<&IHidServer::StopJcms>, "StopJcms"},
         {3114, &IHidServer::StubReplyZeroed, "Unknown3114"},
         {3130, &IHidServer::StubReplyZeroed, "Unknown3130"},
         {3131, C<&IHidServer::FinalizeNmouse>, "FinalizeNmouse"},
@@ -1243,6 +1244,35 @@ Result IHidServer::InitializeSevenSixAxisSensor(ClientAppletResourceUserId aruid
 
     GetResourceManager()->GetSevenSixAxis()->SetTransferMemoryAddress(t_mem_1->GetSourceAddress(), t_mem_1->GetOwner());
 
+    R_SUCCEED();
+}
+
+Result IHidServer::InitializeJcms(ClientAppletResourceUserId aruid, u64 t_mem_size,
+                                  InCopyHandle<Kernel::KTransferMemory> t_mem) {
+    LOG_INFO(Service_HID, "called, t_mem_size={:#x}, applet_resource_user_id={}", t_mem_size,
+             aruid.pid);
+    GetResourceManager()->GetJcms()->SetTransferMemory(
+        t_mem->GetSourceAddress(), std::min<u64>(t_mem_size, t_mem->GetSize()), t_mem->GetOwner());
+    R_SUCCEED();
+}
+
+Result IHidServer::FinalizeJcms(ClientAppletResourceUserId aruid) {
+    LOG_INFO(Service_HID, "called, applet_resource_user_id={}", aruid.pid);
+    GetResourceManager()->GetJcms()->SetTransferMemory(0, 0, nullptr);
+    R_SUCCEED();
+}
+
+Result IHidServer::StartJcms(u32 jcms_handle, ClientAppletResourceUserId aruid) {
+    LOG_INFO(Service_HID, "called, jcms_handle={:#x}, applet_resource_user_id={}", jcms_handle,
+             aruid.pid);
+    GetResourceManager()->GetJcms()->SetStarted(jcms_handle, true);
+    R_SUCCEED();
+}
+
+Result IHidServer::StopJcms(u32 jcms_handle, ClientAppletResourceUserId aruid) {
+    LOG_INFO(Service_HID, "called, jcms_handle={:#x}, applet_resource_user_id={}", jcms_handle,
+             aruid.pid);
+    GetResourceManager()->GetJcms()->SetStarted(jcms_handle, false);
     R_SUCCEED();
 }
 

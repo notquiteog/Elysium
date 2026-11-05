@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <thread>
 #include <chrono>
 #include <condition_variable>
@@ -1687,6 +1688,7 @@ public:
             // Firmware commands without a known meaning: zeroed replies.
             {13, &INx2Vi2Session::StubReplyZeroed, "Unknown13"},
             {51, &INx2Vi2Session::StubReplyZeroed, "Unknown51"},
+            {53, &INx2Vi2Session::GetRecordedTimestamps, "GetRecordedTimestamps"},
             {101, &INx2Vi2Session::StubReplyZeroed, "Unknown101"},
             {102, &INx2Vi2Session::StubReplyZeroed, "Unknown102"},
             {107, &INx2Vi2Session::StubReplyZeroed, "Unknown107"},
@@ -2341,6 +2343,29 @@ private:
     void GetTimestampRecorderCount(HLERequestContext& ctx) {
         LOG_WARNING(Service, "(STUBBED) nx2:vi2 TIPC 5, returning 7");
         TipcReplyWords(ctx, {7});
+    }
+
+    // 53(u32 recorder, u64 checkpoint bits, u64 max count; B: u64 timestamps): one system tick per
+    // set checkpoint bit, ascending; reply u64 bytes written, u32 still pending. Read from the
+    // SDK's GetRecordedTimestamp, which polls this until pending is 0. nn::vi::ListFrameHistory
+    // reports a frame as shown only once it has a timestamp, and Unreal Engine games (Orbitals)
+    // wait for a shown frame before the next one: the zeroed auto stub stalled them after 8
+    // frames, and the game thread aborted after its render fence timeout.
+    // ponytail: presents complete before 229 returns, so every checkpoint gets the query time.
+    void GetRecordedTimestamps(HLERequestContext& ctx) {
+        const u32* w = ctx.CommandBuffer();
+        const u32 buffers = ((w[0] >> 20) & 0xf) + ((w[0] >> 24) & 0xf) + ((w[0] >> 28) & 0xf);
+        const u32* data = w + 2 + 3 * buffers;
+        const u64 bits = u64{data[1]} | (u64{data[2]} << 32);
+        const std::size_t count = std::min<std::size_t>(
+            {static_cast<std::size_t>(std::popcount(bits)), ctx.GetWriteBufferSize() / sizeof(u64), 8});
+        std::array<u64, 8> stamps{};
+        std::fill_n(stamps.begin(), count, system.CoreTiming().GetClockTicks());
+        if (count != 0) {
+            ctx.WriteBuffer(stamps.data(), count * sizeof(u64));
+        }
+        const u64 bytes = count * sizeof(u64);
+        TipcReplyWords(ctx, {static_cast<u32>(bytes), static_cast<u32>(bytes >> 32), 0});
     }
 
     void ReturnEvent(HLERequestContext& ctx) {
