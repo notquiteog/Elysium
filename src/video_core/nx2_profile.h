@@ -107,15 +107,22 @@ enum class DmaWaitCause : u32 {
     ConstBufferUpload, ///< A 3D constant buffer upload (const_buffer.buffer)
     InlineUpload,      ///< 3D inline data
     Macro3D,           ///< A 3D macro register
-    Other3D,           ///< Another memory-writing 3D method (reports, DMA launch, sync)
+    Report,            ///< A 3D report (report_semaphore.query)
+    DmaLaunch,         ///< 3D launch_dma
+    SyncInfo,          ///< 3D sync_info
+    WaitForIdle,       ///< 3D wait_for_idle
+    Other3D,           ///< Another memory-writing 3D method
     OtherEngine,       ///< A compute, DMA, inline-to-memory or 2D engine method
     Deferred,          ///< Puller semaphore releases and maps
+    AvoidedByRange,    ///< Not waited: the pending writes' ranges miss the read (RangeLastWrite)
     Count,
 };
 
 inline constexpr std::array<const char*, static_cast<size_t>(DmaWaitCause::Count)>
-    dma_wait_cause_names{"compute/copy", "host sync",    "cbuf upload",  "inline upload",
-                         "3D macro",     "other 3D",     "other engine", "deferred"};
+    dma_wait_cause_names{"compute/copy",  "host sync",    "cbuf upload", "inline upload",
+                         "3D macro",      "report",       "dma launch",  "sync info",
+                         "wait for idle", "other 3D",     "other engine", "deferred",
+                         "avoided (range)"};
 
 struct ThreadData {
     std::array<u64, static_cast<size_t>(Zone::Count)> exclusive_ns{};

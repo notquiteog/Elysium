@@ -143,6 +143,8 @@ void GpuSplit::Stop() {
     last_writer_position = 0;
     last_sync_position = 0;
     last_memory_write_position = 0;
+    previous_memory_write_position = 0;
+    ranged_writes.clear();
     published_local = 0;
     consumed_cache = 0;
     publish_every = PublishEvery;
@@ -244,28 +246,84 @@ bool GpuSplit::WaitForSync() {
     return WaitFor(std::min(last_sync_position, write_position), DrainSite::ListSync);
 }
 
-bool GpuSplit::WaitForMemoryWriters(DrainSite site) {
-    const u64 target =
-        std::max({last_writer_position, last_sync_position, last_memory_write_position});
-    if (Nx2Profile::Enabled() &&
-        consumed.load(std::memory_order_acquire) < std::min(target, write_position)) {
-        // What the read waits for: the newest of the three positions.
-        using Cause = Nx2Profile::DmaWaitCause;
-        Cause cause = Cause::HostSync;
-        if (target == last_memory_write_position) {
-            const u32 method = last_memory_write_method;
-            cause = method == DeferredWrite                ? Cause::Deferred
-                    : method == OtherEngineWrite           ? Cause::OtherEngine
-                    : method >= 0x8e4 && method < 0x8f4    ? Cause::ConstBufferUpload
-                    : method == 0x6d                       ? Cause::InlineUpload
-                    : method >= 0xe00                      ? Cause::Macro3D
-                                                           : Cause::Other3D;
-        } else if (target == last_writer_position) {
-            cause = Cause::ComputeCopy;
-        }
-        Nx2Profile::AddDmaWaitCause(cause);
+void GpuSplit::RangeLastWrite(GPUVAddr begin, GPUVAddr end) {
+    static const bool enabled = [] {
+        const char* const value = std::getenv("EDEN_NX2_RANGED_WAITS");
+        return value == nullptr || value[0] != '0';
+    }();
+    // Only the method that was just sent: anything after it keeps its unranged mark.
+    if (!enabled || begin >= end || last_memory_write_position != write_position) {
+        return;
     }
-    return WaitFor(std::min(target, write_position), site);
+    const u32 method = last_memory_write_method;
+    last_memory_write_position = previous_memory_write_position;
+    last_memory_write_method = previous_memory_write_method;
+    // Consecutive uploads continue one range (each word may use another of the 16 data methods).
+    if (!ranged_writes.empty()) {
+        RangedWrite& last = ranged_writes.back();
+        if (last.end == begin) {
+            last.end = end;
+            last.position = write_position;
+            last.method = method;
+            return;
+        }
+    }
+    if (ranged_writes.size() == MaxRangedWrites) {
+        // Too many in flight: the oldest counts for every read again.
+        const RangedWrite& oldest = ranged_writes.front();
+        if (oldest.position > last_memory_write_position) {
+            last_memory_write_position = oldest.position;
+            last_memory_write_method = oldest.method;
+        }
+        ranged_writes.pop_front();
+    }
+    ranged_writes.push_back({write_position, begin, end, method});
+}
+
+bool GpuSplit::WaitForMemoryWriters(DrainSite site, GPUVAddr begin, GPUVAddr end) {
+    const u64 done = consumed.load(std::memory_order_acquire);
+    while (!ranged_writes.empty() && ranged_writes.front().position <= done) {
+        ranged_writes.pop_front();
+    }
+    const u64 unranged =
+        std::max({last_writer_position, last_sync_position, last_memory_write_position});
+    u64 target = unranged;
+    u32 target_method = last_memory_write_method;
+    for (const RangedWrite& write : ranged_writes) {
+        if (write.begin < end && begin < write.end && write.position > target) {
+            target = write.position;
+            target_method = write.method;
+        }
+    }
+    target = std::min(target, write_position);
+    if (Nx2Profile::Enabled()) {
+        // What the read waits for: the newest writer it depends on.
+        using Cause = Nx2Profile::DmaWaitCause;
+        const u64 all_writes =
+            ranged_writes.empty() ? unranged : std::max(unranged, ranged_writes.back().position);
+        if (done < target) {
+            Cause cause = Cause::HostSync;
+            if (target != last_writer_position && target != last_sync_position) {
+                const u32 method = target_method;
+                cause = method == DeferredWrite               ? Cause::Deferred
+                        : method == OtherEngineWrite          ? Cause::OtherEngine
+                        : method >= 0x8e4 && method < 0x8f4   ? Cause::ConstBufferUpload
+                        : method == 0x6d                      ? Cause::InlineUpload
+                        : method == 0x6c3                     ? Cause::Report
+                        : method == 0x6c                      ? Cause::DmaLaunch
+                        : method == 0xb2                      ? Cause::SyncInfo
+                        : method == 0x44                      ? Cause::WaitForIdle
+                        : method >= 0xe00                     ? Cause::Macro3D
+                                                              : Cause::Other3D;
+            } else if (target == last_writer_position) {
+                cause = Cause::ComputeCopy;
+            }
+            Nx2Profile::AddDmaWaitCause(cause);
+        } else if (done < std::min(all_writes, write_position)) {
+            Nx2Profile::AddDmaWaitCause(Cause::AvoidedByRange);
+        }
+    }
+    return WaitFor(target, site);
 }
 
 bool GpuSplit::WaitFor(u64 target, DrainSite site) {

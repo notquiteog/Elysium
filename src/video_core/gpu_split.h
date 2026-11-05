@@ -6,6 +6,7 @@
 #include <array>
 #include <atomic>
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <thread>
@@ -190,14 +191,21 @@ public:
     }
     /// A method that writes memory was just sent; the method is kept for the GPU profile.
     void NoteMethodWrite(const Tegra::Engines::EngineInterface* engine, u32 method) {
+        previous_memory_write_position = last_memory_write_position;
+        previous_memory_write_method = last_memory_write_method;
         last_memory_write_position = write_position;
         // Engines all of whose methods write (compute, DMA, inline-to-memory, 2D) mark method 0.
         last_memory_write_method = engine->memory_write_mask[0] ? OtherEngineWrite : method;
     }
-    /// For the front's macro memory reads (MME DMA): waits until the back executed the methods
-    /// that write memory in command order (memory_write_mask, NoteMemoryWrite), the compute and
-    /// copy work and the work before the last host-level wait, all sent so far.
-    bool WaitForMemoryWriters(DrainSite site);
+    /// The method just sent writes only [begin, end): a macro memory read waits for it only where
+    /// they overlap. Without this call its write counts for every read. EDEN_NX2_RANGED_WAITS=0
+    /// keeps every write counting.
+    void RangeLastWrite(GPUVAddr begin, GPUVAddr end);
+    /// For the front's macro memory reads (MME DMA) of [begin, end): waits until the back executed
+    /// the methods that write memory in command order (memory_write_mask, NoteMemoryWrite; ranged
+    /// writes only where they overlap), the compute and copy work and the work before the last
+    /// host-level wait, all sent so far.
+    bool WaitForMemoryWriters(DrainSite site, GPUVAddr begin, GPUVAddr end);
 
 private:
     friend struct GpuSplitTestAccess;
@@ -276,6 +284,17 @@ private:
     static constexpr u32 OtherEngineWrite = ~0U - 1;
     /// The 3D method behind last_memory_write_position, or one of the two values above.
     u32 last_memory_write_method{DeferredWrite};
+    u64 previous_memory_write_position{};
+    u32 previous_memory_write_method{DeferredWrite};
+    /// Writes with a known range (RangeLastWrite) the back may not have run yet, oldest first.
+    struct RangedWrite {
+        u64 position;
+        GPUVAddr begin;
+        GPUVAddr end;
+        u32 method;
+    };
+    static constexpr size_t MaxRangedWrites = 256;
+    std::deque<RangedWrite> ranged_writes;
     u64 published_local{};
     u64 consumed_cache{};
     /// Words between publishes: small right after a drain, while the back has nothing to do.
