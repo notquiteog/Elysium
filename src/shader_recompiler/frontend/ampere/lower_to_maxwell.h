@@ -3010,8 +3010,8 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
             }
             break;
         }
-        case 0x598: case 0x599: case 0x59a: case 0x59b: case 0x59c: case 0x59d: case 0x59e:
-        case 0x59f: { // FFMA with register sources (docs/NvidiaGpu.md: FFMA_reg `0101 1001 1--- ----`)
+        case 0x598: case 0x599: case 0x59a: case 0x59b: case 0x59c: case 0x59d:
+        case 0x59e: { // FFMA with register sources (docs/NvidiaGpu.md: FFMA_reg `0101 1001 1--- ----`); 0x59f is SURED
             // In this family the low three bits of the opcode are the source form selector, not
             // bits 9-11 like the 0x223/0x423 forms: 0x598 is form 0 and 0x59f is form 7, which is
             // what operand() has to be told, otherwise it decodes the wrong operand layout.
