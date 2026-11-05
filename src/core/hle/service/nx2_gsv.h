@@ -2059,7 +2059,7 @@ private:
             parent = memory->second.parent;
             parent_offset = memory->second.parent_offset + image->second.offset;
             layout = Nx2CalculateImageLayout(image->second.preference.data());
-            image_format = image->second.preference[6];
+            image_format = static_cast<Nx2NativeImageFormat>(image->second.preference[6]);
             if (Nx2VideoTraceEnabled()) {
                 video_trace = m_objects->last_video_write;
             }
