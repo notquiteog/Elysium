@@ -116,6 +116,7 @@ u64 ShaderCache::MeshStateHash() const {
 }
 
 bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) try {
+    ReclaimInvalidatedShaders();
     auto& dirty{maxwell3d->dirty.flags};
     if (!dirty[VideoCommon::Dirty::Shaders]) {
         return last_shaders_valid;
@@ -252,6 +253,7 @@ bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) try {
 }
 
 const ShaderInfo* ShaderCache::ComputeShader() {
+    ReclaimInvalidatedShaders();
     const GPUVAddr program_base{kepler_compute->regs.code_loc.Address()};
     const auto& qmd{kepler_compute->launch_description};
     const GPUVAddr shader_addr{program_base + qmd.program_start};
@@ -407,18 +409,40 @@ void ShaderCache::RemovePendingShaders() {
     marked_for_removal.clear();
 
     if (!removed_shaders.empty()) {
-        if (removed_shaders.size() > 16) {
+        const bool sorted = removed_shaders.size() > 16;
+        if (sorted) {
             std::ranges::sort(removed_shaders, std::less<ShaderInfo*>{});
-            std::erase_if(storage, [&removed_shaders](const std::unique_ptr<ShaderInfo>& shader) {
-                return std::binary_search(removed_shaders.begin(), removed_shaders.end(),
-                                          shader.get(), std::less<ShaderInfo*>{});
-            });
-        } else {
-            std::erase_if(storage, [&removed_shaders](const std::unique_ptr<ShaderInfo>& shader) {
-                return std::ranges::find(removed_shaders, shader.get()) != removed_shaders.end();
-            });
         }
+        for (auto& shader : storage) {
+            const bool removed = sorted
+                ? std::binary_search(removed_shaders.begin(), removed_shaders.end(), shader.get(),
+                                     std::less<ShaderInfo*>{})
+                : std::ranges::find(removed_shaders, shader.get()) != removed_shaders.end();
+            if (removed) {
+                retired_shaders.push_back(std::move(shader));
+            }
+        }
+        std::erase(storage, nullptr);
+        invalidation_generation.fetch_add(1, std::memory_order_release);
     }
+}
+
+void ShaderCache::ReclaimInvalidatedShaders() {
+    if (invalidation_generation.load(std::memory_order_acquire) ==
+        observed_invalidation_generation) {
+        return;
+    }
+    // Apart from the bound stages, no raw ShaderInfo pointer survives between pipeline lookups.
+    // Environments sent to workers own their lowered code, so dropping those stages is sufficient.
+    // CPU invalidation holds this same lock while retiring objects and publishing a generation.
+    std::scoped_lock lock{lookup_mutex};
+    shader_infos.fill(nullptr);
+    last_shaders_valid = false;
+    if (maxwell3d) {
+        maxwell3d->dirty.flags[VideoCommon::Dirty::Shaders] = true;
+    }
+    retired_shaders.clear();
+    observed_invalidation_generation = invalidation_generation.load(std::memory_order_relaxed);
 }
 
 void ShaderCache::InvalidatePageEntries(std::vector<Entry*>& entries, VAddr addr, VAddr addr_end) {

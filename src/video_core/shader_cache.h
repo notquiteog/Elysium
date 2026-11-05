@@ -133,6 +133,9 @@ private:
     /// @pre invalidation_mutex is locked
     void RemovePendingShaders();
 
+    /// Drop invalidated bindings and reclaim retired metadata on the renderer thread.
+    void ReclaimInvalidatedShaders();
+
     /// @brief Invalidates entries in a given range for the passed page
     /// @param entries         Vector of entries in the page, it will be modified on overlaps
     /// @param addr            Start address of the invalidation
@@ -174,6 +177,11 @@ private:
     ::Common::unordered_map<u64, std::vector<Entry*>> invalidation_cache;
     std::vector<std::unique_ptr<ShaderInfo>> storage;
     std::vector<Entry*> marked_for_removal;
+    // Invalidation can run on a CPU thread while a renderer lookup still uses a ShaderInfo.
+    // Keep removed objects alive until the next renderer lookup has dropped its old bindings.
+    std::vector<std::unique_ptr<ShaderInfo>> retired_shaders;
+    std::atomic<u64> invalidation_generation{};
+    u64 observed_invalidation_generation{}; // renderer thread only
 
     /// Native programs the lowering rejected, by address, so each draw or dispatch rethrows the
     /// first error instead of lowering again; dropped when guest memory there is written.
