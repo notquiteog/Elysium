@@ -124,6 +124,12 @@ void Controller::Initialize() {
         const std::shared_ptr<IStorage> user_arg_storage = PopInData();
         ASSERT(user_arg_storage != nullptr);
 
+        // The strap guide's argument is built by the Switch 2 SDK and its size is not ours to
+        // check; it shows no UI here, so there is nothing to parse.
+        if (controller_private_arg.mode == ControllerSupportMode::ShowControllerStrapGuide) {
+            break;
+        }
+
         const auto& user_arg = user_arg_storage->GetData();
         switch (controller_applet_version) {
         case ControllerAppletVersion::Version3:
