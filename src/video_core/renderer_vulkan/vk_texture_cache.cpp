@@ -1676,9 +1676,15 @@ void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
     };
     const VkImageAspectFlags src_copy_aspect = copy_aspect(src_aspect_mask);
     const VkImageAspectFlags dst_copy_aspect = copy_aspect(dst_aspect_mask);
+    // The depth plane alone is 4 bytes per texel for D24S8 and D32S8 (Orchid a8fca56307).
+    const auto plane_bpp = [](const Image& image) {
+        return image.AspectMask() == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
+                   ? 4U
+                   : BytesPerBlock(image.info.format) / DefaultBlockWidth(image.info.format);
+    };
 
-    const auto bpp_in = BytesPerBlock(src.info.format) / DefaultBlockWidth(src.info.format);
-    const auto bpp_out = BytesPerBlock(dst.info.format) / DefaultBlockWidth(dst.info.format);
+    const auto bpp_in = plane_bpp(src);
+    const auto bpp_out = plane_bpp(dst);
     std::ranges::transform(copies, vk_in_copies.begin(),
                            [src_copy_aspect, bpp_in, bpp_out](const auto& copy) {
                                auto copy2 = copy;
