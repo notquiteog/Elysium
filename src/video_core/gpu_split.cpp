@@ -197,19 +197,26 @@ void GpuSplit::Publish() {
 }
 
 void GpuSplit::Drain(DrainSite site) {
+    if (!active) {
+        return;
+    }
     consumed_cache = consumed.load(std::memory_order_acquire);
-    if (consumed_cache == write_position) {
+    if (consumed_cache == write_position && back_waiting.load(std::memory_order_acquire)) {
         return;
     }
     Publish();
+    hook_requested.store(true, std::memory_order_release);
     Nx2Profile::Scope scope{Nx2Profile::Zone::SplitDrain};
     const u64 start = Nx2Profile::Enabled() ? Nx2Profile::Now() : 0;
     for (u32 spins = 0;; ++spins) {
         consumed_cache = consumed.load(std::memory_order_acquire);
-        if (consumed_cache == write_position) {
+        if (consumed_cache == write_position && back_waiting.load(std::memory_order_acquire)) {
             publish_every = 8;
             Nx2Profile::AddDrain(site, start);
             return;
+        }
+        if (consumed_cache == write_position && !hook_requested.load(std::memory_order_relaxed)) {
+            hook_requested.store(true, std::memory_order_release);
         }
         if (spins < 16384) {
             Pause();
@@ -355,6 +362,7 @@ void GpuSplit::BackLoop(std::stop_token stop_token) {
     g_back_thread_id.store(GetCurrentThreadId(), std::memory_order_relaxed);
 #endif
     u64 read_position = 0;
+    g_back_busy.store(true, std::memory_order_relaxed);
     while (!stop_token.stop_requested()) {
         Nx2Profile::Report("GPU back thread");
         u64 available = published.load(std::memory_order_acquire);
@@ -373,17 +381,20 @@ void GpuSplit::BackLoop(std::stop_token stop_token) {
                 available = published.load(std::memory_order_acquire);
             }
             if (available == read_position) {
+                g_back_busy.store(false, std::memory_order_release);
                 // Publish bumps `wake` when it sees back_waiting: read it before the last look
                 // at `published`, so a publish in between ends the wait at once.
                 back_waiting.store(true, std::memory_order_seq_cst);
-                const u32 seen = wake.load(std::memory_order_seq_cst);
-                available = published.load(std::memory_order_seq_cst);
-                // A request made after the hook ran (RequestIdleHook) runs it before sleeping.
-                if (available == read_position && !stop_token.stop_requested() &&
-                    !hook_requested.load(std::memory_order_seq_cst)) {
-                    wake.wait(seen, std::memory_order_seq_cst);
+                while (available == read_position && !stop_token.stop_requested()) {
+                    const u32 seen = wake.load(std::memory_order_seq_cst);
+                    available = published.load(std::memory_order_seq_cst);
+                    if (available == read_position && !stop_token.stop_requested()) {
+                        wake.wait(seen, std::memory_order_seq_cst);
+                        available = published.load(std::memory_order_acquire);
+                    }
                 }
-                back_waiting.store(false, std::memory_order_relaxed);
+                back_waiting.store(false, std::memory_order_seq_cst);
+                g_back_busy.store(true, std::memory_order_seq_cst);
                 continue;
             }
         }
@@ -408,6 +419,7 @@ void GpuSplit::BackLoop(std::stop_token stop_token) {
         }
         consumed.store(read_position, std::memory_order_release);
     }
+    g_back_busy.store(false, std::memory_order_release);
     back_running.store(false, std::memory_order_release);
 }
 
