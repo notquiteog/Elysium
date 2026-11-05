@@ -73,7 +73,7 @@ TEST_CASE("MKW preset overrides saved settings for the session", "[game_presets]
     SetConflictingPreferences(*settings, false);
     SetConflictingPreferences(*settings, true);
     REQUIRE(
-        Settings::ApplyMarioKartWorldPreset(*settings, Settings::MarioKartWorldProgramId, true));
+        Settings::ApplyGamePreset(*settings, Settings::MarioKartWorldProgramId, true));
     CheckPreset(*settings);
     CheckPreferences(*settings, true);
     for (const auto& restore : settings->linkage.restore_functions) {
@@ -83,15 +83,15 @@ TEST_CASE("MKW preset overrides saved settings for the session", "[game_presets]
     CHECK(settings->renderer_backend.UsingGlobal());
     CHECK(settings->resolution_setup.UsingGlobal());
     REQUIRE(
-        Settings::ApplyMarioKartWorldPreset(*settings, Settings::MarioKartWorldProgramId, true));
+        Settings::ApplyGamePreset(*settings, Settings::MarioKartWorldProgramId, true));
     CheckPreset(*settings);
 }
 
 TEST_CASE("MKW preset does not change unrelated games", "[game_presets]") {
     auto settings = std::make_unique<Settings::Values>();
     SetConflictingPreferences(*settings, false);
-    CHECK_FALSE(Settings::ApplyMarioKartWorldPreset(*settings, 0, true));
-    CHECK_FALSE(Settings::ApplyMarioKartWorldPreset(*settings,
+    CHECK_FALSE(Settings::ApplyGamePreset(*settings, 0, true));
+    CHECK_FALSE(Settings::ApplyGamePreset(*settings,
                                                     Settings::MarioKartWorldProgramId + 1, true));
     CheckPreferences(*settings);
     CHECK(settings->renderer_backend.UsingGlobal());
@@ -102,10 +102,43 @@ TEST_CASE("Declining the MKW preset preserves global and per-game preferences", 
     auto settings = std::make_unique<Settings::Values>();
     for (bool per_game : {false, true}) {
         SetConflictingPreferences(*settings, per_game);
-        CHECK_FALSE(Settings::ApplyMarioKartWorldPreset(*settings,
+        CHECK_FALSE(Settings::ApplyGamePreset(*settings,
                                                         Settings::MarioKartWorldProgramId, false));
         CheckPreferences(*settings);
         CHECK(settings->renderer_backend.UsingGlobal() == !per_game);
         CHECK(settings->resolution_setup.UsingGlobal() == !per_game);
     }
+}
+
+TEST_CASE("Every Switch 2 preset applies to its own title only", "[game_presets]") {
+    for (const auto& preset : Settings::GamePresets) {
+        auto settings = std::make_unique<Settings::Values>();
+        SetConflictingPreferences(*settings, false);
+        CHECK_FALSE(Settings::ApplyGamePreset(*settings, preset.program_id, false));
+        CheckPreferences(*settings);
+        REQUIRE(Settings::ApplyGamePreset(*settings, preset.program_id, true));
+        CHECK(settings->renderer_backend.GetValue() == Settings::RendererBackend::Vulkan);
+        CHECK(settings->resolution_setup.GetValue() == Settings::ResolutionSetup::Res1X);
+        CHECK(settings->gpu_accuracy.GetValue() == Settings::GpuAccuracy::Low);
+        CHECK_FALSE(settings->use_reactive_flushing.GetValue());
+        CheckPreferences(*settings, true);
+        CHECK(Settings::FindGamePreset(preset.program_id) == &preset);
+    }
+    CHECK(Settings::FindGamePreset(0) == nullptr);
+}
+
+TEST_CASE("Title presets set what the titles need", "[game_presets]") {
+    auto settings = std::make_unique<Settings::Values>();
+    REQUIRE(Settings::ApplyGamePreset(*settings, Settings::DonkeyKongBananzaProgramId, true));
+    CHECK(settings->gpu_clock.GetValue() == Settings::GpuClock::Boost);
+    CHECK(settings->fps30_patch.GetValue());
+    settings = std::make_unique<Settings::Values>();
+    REQUIRE(Settings::ApplyGamePreset(*settings,
+                                      Settings::HyruleWarriorsAgeOfImprisonmentProgramId, true));
+    CHECK(settings->cpu_clock.GetValue() == Settings::CpuClock::Normal);
+    CHECK(settings->gpu_fence_behavior.GetValue() == Settings::GpuFenceBehavior::Balanced);
+    settings = std::make_unique<Settings::Values>();
+    REQUIRE(Settings::ApplyGamePreset(*settings, Settings::MarioTennisFeverProgramId, true));
+    CHECK(settings->gpu_fence_behavior.GetValue() == Settings::GpuFenceBehavior::Balanced);
+    CHECK(settings->async_presentation.GetValue());
 }

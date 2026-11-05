@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <optional>
+#include <unordered_map>
 
 #include <filesystem>
 #include <QElapsedTimer>
@@ -505,8 +506,8 @@ private:
 #endif
 
     MultiplayerState* multiplayer_state = nullptr;
-    bool use_recommended_mkw_settings = false;
-    bool asked_recommended_mkw_settings = false;
+    /// Answers to the recommended settings prompt this session, by program id (asked once each).
+    std::unordered_map<u64, bool> recommended_settings_answers;
 
     GRenderWindow* render_window = nullptr;
     GameList* game_list = nullptr;

@@ -1970,25 +1970,29 @@ void MainWindow::BootGame(const QString& filename, Service::AM::FrontendAppletPa
         QtCommon::system->ApplySettings();
     }
 
-    if (title_id == Settings::MarioKartWorldProgramId && !asked_recommended_mkw_settings) {
-        asked_recommended_mkw_settings = true;
-        use_recommended_mkw_settings =
+    if (const Settings::GamePreset* preset = Settings::FindGamePreset(title_id);
+        preset != nullptr && !recommended_settings_answers.contains(title_id)) {
+        const QString name = QString::fromUtf8(preset->name);
+        // EDEN_RECOMMENDED_SETTINGS=0|1 answers without the dialog (headless test harness).
+        const QByteArray preset_answer = qgetenv("EDEN_RECOMMENDED_SETTINGS");
+        const bool accepted =
+            !preset_answer.isEmpty() ? preset_answer == "1" :
             QMessageBox::question(
-                this, tr("Recommended Mario Kart World settings"),
-                tr("Use the recommended settings for Mario Kart World?\n\n"
-                   "Vulkan, 1x resolution, GPU Fast, asynchronous shaders, BC3, conservative VRAM, "
-                   "reactive flushing off, FIFO Relaxed VSync, handheld mode, ScaleForce, and "
-                   "FXAA.\n\n"
-                   "They apply to Mario Kart World until Elysium is closed. Your saved settings "
-                   "are not changed."),
+                this, tr("Recommended %1 settings").arg(name),
+                tr("Use the recommended settings for %1?\n\n%2\n\n"
+                   "They apply to %1 until Elysium is closed. Your saved settings are not "
+                   "changed.")
+                    .arg(name, QString::fromUtf8(preset->summary)),
                 QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
-        LOG_INFO(Config, "MKW recommended settings accepted: {}", use_recommended_mkw_settings);
+        recommended_settings_answers[title_id] = accepted;
+        LOG_INFO(Config, "{} recommended settings accepted: {}", preset->name, accepted);
     }
-    if (Settings::ApplyMarioKartWorldPreset(Settings::values, title_id,
-                                          use_recommended_mkw_settings)) {
+    if (const auto answer = recommended_settings_answers.find(title_id);
+        answer != recommended_settings_answers.end() &&
+        Settings::ApplyGamePreset(Settings::values, title_id, answer->second)) {
         QtCommon::system->ApplySettings();
         Settings::UpdateGPUAccuracy();
-        LOG_INFO(Config, "Applied recommended MKW settings after per-game configuration");
+        LOG_INFO(Config, "Applied recommended settings after per-game configuration");
     }
     Settings::LogSettings();
 
