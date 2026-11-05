@@ -141,6 +141,7 @@ AppLoader_NUP::AppLoader_NUP(FileSys::VirtualFile file_)
     const auto& meta = base_index && has_metadata(nup->GetPackages()[*base_index])
                            ? nup->GetPackages()[*base_index]
                            : program;
+    display_title = meta.title_name;
     has_program = true;
 
     const auto exefs = nup->GetExeFSDir(*exefs_index);
