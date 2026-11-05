@@ -663,11 +663,17 @@ void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
         const u64 first = is_indexed ? state.index_buffer.first : state.vertex_buffer.first;
         const u64 count = is_indexed ? state.index_buffer.count : state.vertex_buffer.count;
         constexpr u64 MaxVertices = u64{1} << 24;
-        if (first + count > MaxVertices) {
+        // A runaway macro can leave text in the draw registers; such an instance count keeps the
+        // host GPU busy until the kernel's ring timeout resets the device.
+        constexpr u32 MaxInstances = 1U << 20;
+        if (first + count > MaxVertices || instance_count > MaxInstances) {
             static std::atomic<u32> skipped{};
             if (skipped.fetch_add(1, std::memory_order_relaxed) < 16) {
-                LOG_WARNING(HW_GPU, "Draw skipped: {} {} from {} (vertex/index count past {})",
-                            count, is_indexed ? "indices" : "vertices", first, MaxVertices);
+                LOG_WARNING(HW_GPU,
+                            "Draw skipped: {} {} from {}, {} instances (past {} vertices or {} "
+                            "instances)",
+                            count, is_indexed ? "indices" : "vertices", first, instance_count,
+                            MaxVertices, MaxInstances);
             }
             return;
         }
@@ -1773,6 +1779,18 @@ void RasterizerVulkan::FlushAndInvalidateRegion(DAddr addr, u64 size,
 }
 
 void RasterizerVulkan::WaitForIdle() {
+    // Hyrule Warriors sends ~200 a frame, each draining the GPU and ending the render pass; one
+    // with nothing recorded since the last waits for nothing new.
+    static u64 waits{};
+    static u64 skipped{};
+    if ((++waits & 0xffff) == 0) {
+        LOG_INFO(Render_Vulkan, "Wait for idle: {} of the last 65536 skipped",
+                 std::exchange(skipped, 0));
+    }
+    if (scheduler.RecordCount() == wfi_record_count && !scheduler.HasDeferredClear()) {
+        ++skipped;
+        return;
+    }
     // Everything but wait pixel operations. This intentionally includes FRAGMENT_SHADER_BIT because
     // fragment shaders can still write storage buffers.
     VkPipelineStageFlags flags =
@@ -1798,6 +1816,7 @@ void RasterizerVulkan::WaitForIdle() {
         cmdbuf.WaitEvents(event, flags, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, {}, {}, {});
     });
     fence_manager.SignalOrdering();
+    wfi_record_count = scheduler.RecordCount();
 }
 
 void RasterizerVulkan::FragmentBarrier() {

@@ -269,6 +269,7 @@ private:
     FrameDump frame_dump;
 
     vk::Event wfi_event;
+    u64 wfi_record_count = ~u64{}; ///< Scheduler::RecordCount() after the last wait for idle
 
     boost::container::static_vector<u32, MAX_IMAGE_VIEWS> image_view_indices;
     std::array<VideoCommon::ImageViewId, MAX_IMAGE_VIEWS> image_view_ids;
