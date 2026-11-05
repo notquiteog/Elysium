@@ -147,6 +147,7 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 #include "core/frontend/applets/mii_edit.h"
 #include "core/frontend/applets/software_keyboard.h"
 
+#include "core/game_settings.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/service/acc/profile_manager.h"
 #include "core/hle/service/am/applet_manager.h"
@@ -3905,6 +3906,13 @@ void MainWindow::OpenPerGameConfiguration(u64 title_id, const std::string& file_
     const bool is_powered_on = QtCommon::system->IsPoweredOn();
     Settings::RestoreGlobalState(is_powered_on);
     QtCommon::system->HIDCore().ReloadInputDevices();
+    if (is_powered_on) {
+        // The dialog set every setting the user left alone back to global, dropping the running
+        // title's defaults; reapplied after its config file was saved, so they stay out of it.
+        Core::GameSettings::LoadOverrides(QtCommon::system->GetApplicationProcessProgramID(),
+                                          QtCommon::system->Renderer());
+        QtCommon::system->ApplySettings();
+    }
 
     UISettings::values.configuration_applied = false;
 
