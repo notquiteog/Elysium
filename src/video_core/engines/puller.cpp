@@ -69,6 +69,26 @@ void DrainBack() {
 // than guest memory). It counts as a host sync for later GPU-written command lists, as the drain
 // did. Equal and mask acquires always drain. Ported from zortos293/Lichii#166 (e56b37fc0a), with
 // the queued-writer check added.
+// A release still queued for the split's back meets the acquire: the back runs it before the
+// acquire's channel goes on, so the acquire needs no drain (GpuSplit::QueuedReleasePayload).
+bool MetByQueuedRelease(DmaPusher& dma_pusher, const Puller::PendingAcquire& acquire) {
+    auto& split = VideoCommon::GpuSplit::Get();
+    if (!split.Active()) {
+        return false;
+    }
+    const auto device = dma_pusher.memory_manager.GpuToCpuAddress(acquire.address);
+    if (!device) {
+        return false;
+    }
+    const auto payload = split.QueuedReleasePayload(*device, acquire.address);
+    if (!payload || !acquire.Matches(*payload)) {
+        return false;
+    }
+    split.NoteSync();
+    VideoCommon::Nx2Profile::Add(VideoCommon::Nx2Profile::Counter::AcquiresQueued, 1);
+    return true;
+}
+
 bool GequalMetWithoutDrain(DmaPusher& dma_pusher, GPUVAddr address, u32 value) {
     static const bool enabled = [] {
         const char* setting = std::getenv("EDEN_NX2_ACQUIRE_PRECHECK");
@@ -147,6 +167,9 @@ bool Puller::CanResumeAcquire(DmaPusher& dma_pusher) {
     }
     if (MetBeforeDrain(dma_pusher, pending_acquire->address, pending_acquire->operation,
                        pending_acquire->value)) {
+        return true;
+    }
+    if (MetByQueuedRelease(dma_pusher, *pending_acquire)) {
         return true;
     }
     if (static_cast<GpuSemaphoreOperation>(pending_acquire->operation) ==
@@ -303,6 +326,11 @@ void Puller::ProcessSemaphoreTriggerMethod(DmaPusher& dma_pusher) {
         OnBack([rasterizer = dma_pusher.rasterizer, sequence_address, properties, payload] {
             rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload, properties, payload, 0);
         });
+        if (auto& split = VideoCommon::GpuSplit::Get(); split.Active()) {
+            if (const auto device = dma_pusher.memory_manager.GpuToCpuAddress(sequence_address)) {
+                split.NoteRelease(*device, sequence_address, payload);
+            }
+        }
     } else if (g_nx2_ampere) {
         // Switch 2 waits on semaphores the CPU (or another channel) releases, e.g. once it has
         // written the commands this channel runs next: suspend the channel until the value is
@@ -321,6 +349,9 @@ void Puller::ProcessSemaphoreTriggerMethod(DmaPusher& dma_pusher) {
         }
         VideoCommon::Nx2Profile::Add(VideoCommon::Nx2Profile::Counter::AcquireChecks, 1);
         if (MetBeforeDrain(dma_pusher, acquire.address, acquire.operation, acquire.value)) {
+            return;
+        }
+        if (MetByQueuedRelease(dma_pusher, acquire)) {
             return;
         }
         if (op == GpuSemaphoreOperation::AcquireGequal &&

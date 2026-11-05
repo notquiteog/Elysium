@@ -301,6 +301,32 @@ bool GpuSplit::HasQueuedMemoryWriters(GPUVAddr begin, GPUVAddr end) {
     return MemoryWriterTarget(done, begin, end, method) > done;
 }
 
+void GpuSplit::NoteRelease(u64 device, GPUVAddr address, u32 payload) {
+    static const bool enabled = [] {
+        const char* const value = std::getenv("EDEN_NX2_ACQUIRE_QUEUED");
+        return value == nullptr || value[0] != '0';
+    }();
+    if (!enabled) {
+        return;
+    }
+    queued_releases[(device >> 2) % queued_releases.size()] = {write_position, device, payload};
+}
+
+std::optional<u32> GpuSplit::QueuedReleasePayload(u64 device, GPUVAddr address) {
+    const QueuedRelease& release = queued_releases[(device >> 2) % queued_releases.size()];
+    const u64 done = consumed.load(std::memory_order_acquire);
+    if (release.device != device || release.position <= done || release.position == 0) {
+        return std::nullopt;
+    }
+    // Any write sent after the release (an unranged one, or a ranged one to the word) may change
+    // the word before the acquire runs.
+    u32 method{};
+    if (MemoryWriterTarget(done, address, address + sizeof(u32), method) > release.position) {
+        return std::nullopt;
+    }
+    return release.payload;
+}
+
 bool GpuSplit::WaitForMemoryWriters(DrainSite site, GPUVAddr begin, GPUVAddr end) {
     const u64 done = consumed.load(std::memory_order_acquire);
     u32 target_method{};

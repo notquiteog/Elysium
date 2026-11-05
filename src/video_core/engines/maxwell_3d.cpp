@@ -1199,6 +1199,28 @@ void Maxwell3D::FrontWrite(VideoCommon::GpuSplit& split, FrontState& fs, u32 met
     }
     if (write_end != 0) {
         split.RangeLastWrite(write_begin, write_end);
+        if (method == MAXWELL3D_REG_INDEX(report_semaphore.query)) {
+            FrontNoteRelease(split, fs, value);
+        }
+    }
+}
+
+void Maxwell3D::FrontNoteRelease(VideoCommon::GpuSplit& split, const FrontState& fs,
+                                 u32 query) const {
+    // A semaphore release of the payload register (no reduction) writes a value the front knows.
+    Regs::ReportSemaphore report{};
+    report.query.raw = query;
+    if (report.query.operation != Regs::ReportSemaphore::Operation::Release ||
+        report.query.report != Regs::ReportSemaphore::Report::Payload ||
+        report.query.reduction_enable != 0) {
+        return;
+    }
+    const GPUVAddr address =
+        (GPUVAddr{fs.regs[MAXWELL3D_REG_INDEX(report_semaphore.address_high)]} << 32) |
+        fs.regs[MAXWELL3D_REG_INDEX(report_semaphore.address_low)];
+    if (const auto device = memory_manager.GpuToCpuAddress(address)) {
+        split.NoteRelease(*device, address,
+                          fs.regs[MAXWELL3D_REG_INDEX(report_semaphore.payload)]);
     }
 }
 
@@ -1329,6 +1351,9 @@ void Maxwell3D::FrontCallMultiMethod(Core::System& system, VideoCommon::GpuSplit
     split.MultiMethod(this, method, base_start, amount, methods_pending, nullptr);
     if (write_end != 0) {
         split.RangeLastWrite(write_begin, write_end);
+        if (method == MAXWELL3D_REG_INDEX(report_semaphore.query) && amount == 1) {
+            FrontNoteRelease(split, fs, base_start[0]);
+        }
     }
 }
 

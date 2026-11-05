@@ -3402,6 +3402,8 @@ private:
     void FrontRunMacro(Core::System& system, VideoCommon::GpuSplit& split, FrontState& state);
     void FrontDmaRead(VideoCommon::GpuSplit& split, FrontState& state, u32 macro, u32 method,
                       u32 count);
+    /// Tells the split a report just sent releases a known payload (GpuSplit::NoteRelease).
+    void FrontNoteRelease(VideoCommon::GpuSplit& split, const FrontState& fs, u32 query) const;
     /// The memory `amount` words of `method` write, if known (constant buffer uploads, reports).
     std::pair<GPUVAddr, GPUVAddr> FrontWriteRange(const FrontState& state, u32 method,
                                                   u32 amount) const;

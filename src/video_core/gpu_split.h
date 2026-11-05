@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstring>
 #include <deque>
+#include <optional>
 #include <functional>
 #include <memory>
 #include <thread>
@@ -209,6 +210,13 @@ public:
     /// Whether WaitForMemoryWriters(begin, end) would wait now: work that may write the range is
     /// still queued for the back.
     bool HasQueuedMemoryWriters(GPUVAddr begin, GPUVAddr end);
+    /// A semaphore release that writes `payload` at device address `device` (from GPU address
+    /// `address`) was just sent (a puller release, a 3D payload report).
+    void NoteRelease(u64 device, GPUVAddr address, u32 payload);
+    /// For a semaphore acquire of `device`: the payload a release still queued for the back writes
+    /// there, if nothing sent after it may write the word. The back runs the acquire's channel
+    /// after that release, so an acquire it meets needs no drain. EDEN_NX2_ACQUIRE_QUEUED=0 off.
+    std::optional<u32> QueuedReleasePayload(u64 device, GPUVAddr address);
 
 private:
     friend struct GpuSplitTestAccess;
@@ -298,6 +306,12 @@ private:
     };
     static constexpr size_t MaxRangedWrites = 256;
     std::deque<RangedWrite> ranged_writes;
+    struct QueuedRelease {
+        u64 position;
+        u64 device;
+        u32 payload;
+    };
+    std::array<QueuedRelease, 64> queued_releases{};
     /// Drops consumed ranged writes; returns the position a memory read of [begin, end) waits
     /// for and the method behind it.
     u64 MemoryWriterTarget(u64 done, GPUVAddr begin, GPUVAddr end, u32& target_method);
