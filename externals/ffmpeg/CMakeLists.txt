@@ -262,7 +262,20 @@ else()
     if (MINGW)
         # The bundled AV1 package is built with MSVC and cannot be linked by MinGW.
         # Use the MSYS2 dav1d package for the MinGW PGO build instead.
-        list(APPEND FFmpeg_AV1_FLAGS --enable-decoder=libdav1d --enable-libdav1d)
+        list(APPEND FFmpeg_AV1_FLAGS --enable-decoder=libdav1d --enable-libdav1d --disable-iconv)
+        list(APPEND FFmpeg_HWACCEL_LIBRARIES dav1d)
+        # FFmpeg links through the compiler driver here, and stays out of PGO: its objects carry
+        # no profile, and instrumented link tests would need the profile runtime.
+        set(FFmpeg_CROSS_COMPILE_FLAGS --target-os=mingw32 --arch=x86_64)
+        set(FFmpeg_CC ${CMAKE_C_COMPILER})
+        set(FFmpeg_CXX ${CMAKE_CXX_COMPILER})
+        set(FFmpeg_LD ${CMAKE_C_COMPILER})
+        set(FFmpeg_C_FLAGS "")
+        set(FFmpeg_CXX_FLAGS "")
+    else()
+        set(FFmpeg_LD ${CMAKE_LINKER})
+        set(FFmpeg_C_FLAGS "${CMAKE_C_FLAGS}")
+        set(FFmpeg_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     endif()
     add_custom_command(
         OUTPUT
@@ -285,9 +298,9 @@ else()
                 --enable-pic
                 --cc=${FFmpeg_CC}
                 --cxx=${FFmpeg_CXX}
-                --ld=${CMAKE_LINKER}
-                --extra-cflags=${CMAKE_C_FLAGS}
-                --extra-cxxflags=${CMAKE_CXX_FLAGS}
+                --ld=${FFmpeg_LD}
+                --extra-cflags=${FFmpeg_C_FLAGS}
+                --extra-cxxflags=${FFmpeg_CXX_FLAGS}
                 --extra-ldflags=${CMAKE_C_LINK_FLAGS}
                 ${FFmpeg_HWACCEL_FLAGS}
                 ${FFmpeg_CROSS_COMPILE_FLAGS}
@@ -305,7 +318,8 @@ else()
         COMMAND
             nproc
         OUTPUT_VARIABLE
-            SYSTEM_THREADS)
+            SYSTEM_THREADS
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 
     set(FFmpeg_BUILD_LIBRARIES ${FFmpeg_LIBRARIES})
 
@@ -316,11 +330,12 @@ else()
         set(FFmpeg_MAKE_ARGS "")
     endif()
 
+    find_program(FFmpeg_MAKE_PROGRAM NAMES gmake make REQUIRED)
     add_custom_command(
         OUTPUT
             ${FFmpeg_BUILD_LIBRARIES}
         COMMAND
-            gmake ${FFmpeg_MAKE_ARGS}
+            ${FFmpeg_MAKE_PROGRAM} ${FFmpeg_MAKE_ARGS}
         WORKING_DIRECTORY
             ${FFmpeg_BUILD_DIR}
     )
