@@ -555,8 +555,6 @@ private:
 
     void TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept;
 
-    void RefreshMultiRangeSegments(std::vector<MultiRangeSegment>& pool);
-
     bool SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size);
 
     void UploadMemory(Buffer& buffer, u64 total_size_bytes, u64 largest_copy,
