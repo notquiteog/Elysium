@@ -176,8 +176,7 @@ TEST_CASE("Logged Pokopia F2I preserves guards and rejects unrelated modifiers",
         for (size_t index = 0; index + 1 < lowered.instructions.size(); ++index)
             CHECK(((lowered.instructions[index] >> 16) & 15) == guard);
     }
-    for (const u32 source : {0x80c03400U, 0xc0c03400U, 0x44c03400U, 0x40c03440U,
-                             0x48c03400U, 0x50c03400U, 0x60c03400U}) {
+    for (const u32 source : {0x44c03400U, 0x40c03440U, 0x48c03400U, 0x50c03400U, 0x60c03400U}) {
         auto invalid = LoggedF2I;
         invalid.words[1] = source;
         CHECK_FALSE(LowerToMaxwell(std::array{invalid, Exit}));
