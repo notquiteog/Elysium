@@ -10,6 +10,7 @@
 #include "hid_core/hid_core.h"
 #include "hid_core/hid_result.h"
 #include "hid_core/hid_util.h"
+#include "hid_core/resources/mouse/jcms.h"
 #include "hid_core/resources/npad/npad.h"
 #include "hid_core/resources/shared_memory_format.h"
 #include "hid_core/resources/six_axis/six_axis.h"
@@ -25,6 +26,10 @@ SixAxis::SixAxis(Core::HID::HIDCore& hid_core_, std::shared_ptr<NPad> npad_)
 }
 
 SixAxis::~SixAxis() = default;
+
+void SixAxis::SetJcms(std::shared_ptr<Jcms> jcms_) {
+    jcms = std::move(jcms_);
+}
 
 void SixAxis::OnInit() {}
 void SixAxis::OnRelease() {}
@@ -131,6 +136,23 @@ void SixAxis::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
             case Core::HID::NpadStyleIndex::JoyconDual:
                 set_motion_state(sixaxis_dual_left_state, motion_state[0]);
                 set_motion_state(sixaxis_dual_right_state, motion_state[1]);
+                // ponytail: a Joy-Con used as a mouse lies on its rail side (left rail faces +x,
+                // right rail -x). With no motion source our sample is all zero, which games
+                // discard as invalid, so report that resting pose for sides with Jcms started.
+                for (const bool is_right : {false, true}) {
+                    auto& state = is_right ? sixaxis_dual_right_state : sixaxis_dual_left_state;
+                    if (jcms == nullptr || !jcms->IsStarted(i, is_right) ||
+                        state.accel.Length2() != 0.0f) {
+                        continue;
+                    }
+                    const f32 rail = is_right ? -1.0f : 1.0f;
+                    state.accel = {rail, 0, 0};
+                    state.orientation = {
+                        Common::Vec<f32, 3>{0, 0, -rail},
+                        Common::Vec<f32, 3>{0, 1.0f, 0},
+                        Common::Vec<f32, 3>{rail, 0, 0},
+                    };
+                }
                 break;
             case Core::HID::NpadStyleIndex::JoyconLeft:
                 set_motion_state(sixaxis_left_lifo_state, motion_state[0]);

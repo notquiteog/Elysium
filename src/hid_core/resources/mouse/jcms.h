@@ -29,6 +29,7 @@ public:
 
     void SetTransferMemory(Common::ProcessAddress t_mem, u64 size, Kernel::KProcess* owner);
     void SetStarted(u32 handle, bool is_started);
+    bool IsStarted(std::size_t npad_index, bool is_right) const;
 
     // npad id (byte 0, below 8) times two plus JcmsType (byte 1, 0 left or 1 right)
     static constexpr std::size_t JcmsCount = 16;

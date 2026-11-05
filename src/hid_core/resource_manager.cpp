@@ -257,6 +257,7 @@ void ResourceManager::InitializeHidCommonSampler() {
                            &input_mutex, settings);
 
     six_axis->SetAppletResource(applet_resource, &shared_mutex);
+    six_axis->SetJcms(jcms);
     mouse->SetAppletResource(applet_resource, &shared_mutex);
     debug_mouse->SetAppletResource(applet_resource, &shared_mutex);
     home_button->SetAppletResource(applet_resource, &shared_mutex);

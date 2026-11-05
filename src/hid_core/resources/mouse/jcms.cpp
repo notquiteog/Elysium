@@ -73,4 +73,9 @@ void Jcms::SetStarted(u32 handle, bool is_started) {
     }
 }
 
+bool Jcms::IsStarted(std::size_t npad_index, bool is_right) const {
+    const std::size_t index = npad_index * 2 + (is_right ? 1 : 0);
+    return index < JcmsCount && started[index];
+}
+
 } // namespace Service::HID

@@ -15,6 +15,7 @@ class EmulatedController;
 
 namespace Service::HID {
 class NPad;
+class Jcms;
 
 class SixAxis final : public ControllerBase {
 public:
@@ -29,6 +30,9 @@ public:
 
     // When the controller is requesting an update for the shared memory
     void OnUpdate(const Core::Timing::CoreTiming& core_timing) override;
+
+    // ponytail: Joy-Cons in mouse mode report a resting pose when nothing feeds their motion
+    void SetJcms(std::shared_ptr<Jcms> jcms_);
 
     Result SetGyroscopeZeroDriftMode(const Core::HID::SixAxisSensorHandle& sixaxis_handle,
                                      Core::HID::GyroscopeZeroDriftMode drift_mode);
@@ -107,6 +111,7 @@ private:
     const NpadControllerData& GetControllerFromNpadIdType(Core::HID::NpadIdType npad_id) const;
 
     std::shared_ptr<NPad> npad;
+    std::shared_ptr<Jcms> jcms;
     std::array<NpadControllerData, NPAD_COUNT> controller_data{};
 };
 } // namespace Service::HID
