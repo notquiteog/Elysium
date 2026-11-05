@@ -94,6 +94,8 @@ struct Nx2VideoDecoder::Impl {
     std::optional<FFmpeg::DecoderContext> context;
     SwsContext* scaler{};
     bool open{};
+    bool using_hardware{};
+    bool received_any{};
     H264PacketConverter h264_packets;
     /// Timestamps of submitted frames not yet output. Frames copied back from a host GPU decoder
     /// lose theirs and take the earliest one instead.
@@ -104,6 +106,33 @@ struct Nx2VideoDecoder::Impl {
         sws_freeContext(scaler);
         context.reset();
         hardware.reset();
+    }
+
+    bool Open(NvdecCommon::VideoCodec codec_type, bool use_gpu) {
+        context.reset();
+        hardware.reset();
+        decoder.emplace(codec_type, use_gpu);
+        if (decoder->GetCodec() == nullptr) {
+            return false;
+        }
+        context.emplace(*decoder);
+        if (use_gpu) {
+            hardware.emplace();
+            if (!hardware->InitializeForDecoder(*context, *decoder)) {
+                hardware.reset();
+                return false;
+            }
+        } else {
+            // 2560x1440 VP9 movies decoded below 60 fps on one thread, and the client aborts when
+            // no frame is ready. Frame threads add a few frames of latency, covered by the
+            // client's queued inputs.
+            AVCodecContext* codec_context = context->GetCodecContext();
+            // The context is opened for low delay, which stops FFmpeg from choosing frame threads.
+            codec_context->flags &= ~AV_CODEC_FLAG_LOW_DELAY;
+            codec_context->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+            codec_context->thread_count = 4;
+        }
+        return context->OpenContext(*decoder);
     }
 
     void Receive(std::vector<Nx2Picture>& pictures) {
@@ -123,6 +152,7 @@ struct Nx2VideoDecoder::Impl {
             }
             pictures.push_back({static_cast<u32>(f->width), static_cast<u32>(f->height), pts,
                                 std::move(frame)});
+            received_any = true;
         }
     }
 };
@@ -134,26 +164,14 @@ Nx2VideoDecoder::Nx2VideoDecoder(std::string_view mime) : impl{std::make_unique<
         LOG_ERROR(HW_GPU, "nx2 video: no decoder for codec \"{}\"", mime);
         return;
     }
-    impl->decoder.emplace(*codec);
-    if (impl->decoder->GetCodec() == nullptr) {
-        LOG_ERROR(HW_GPU, "nx2 video: FFmpeg has no decoder for \"{}\"", mime);
-        return;
-    }
-    impl->context.emplace(*impl->decoder);
     if (Settings::values.nvdec_emulation.GetValue() == Settings::NvdecEmulation::Gpu) {
-        impl->hardware.emplace();
-        impl->hardware->InitializeForDecoder(*impl->context, *impl->decoder);
-    } else {
-        // 2560x1440 VP9 movies decoded below 60 fps on one thread, and the client aborts when no
-        // frame is ready. Frame threads add a few frames of latency, covered by the client's
-        // queued inputs.
-        AVCodecContext* codec_context = impl->context->GetCodecContext();
-        // The context is opened for low delay, which stops FFmpeg from choosing frame threads.
-        codec_context->flags &= ~AV_CODEC_FLAG_LOW_DELAY;
-        codec_context->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
-        codec_context->thread_count = 4;
+        impl->open = impl->Open(*codec, true);
+        impl->using_hardware = impl->open;
     }
-    impl->open = impl->context->OpenContext(*impl->decoder);
+    if (!impl->open) {
+        impl->using_hardware = false;
+        impl->open = impl->Open(*codec, false);
+    }
     LOG_INFO(HW_GPU, "nx2 video: decoder for \"{}\" {}", mime, impl->open ? "open" : "failed to open");
 }
 
@@ -186,7 +204,14 @@ void Nx2VideoDecoder::Decode(std::span<const u8> data, u64 pts, std::vector<Nx2P
         impl->pending_pts.erase(impl->pending_pts.begin());
     }
     impl->pending_pts.insert(pts);
-    impl->context->SendPacket(packet);
+    if (!impl->context->SendPacket(packet) && impl->using_hardware && !impl->received_any) {
+        if (const auto codec = CodecFromMime(impl->name); codec && impl->Open(*codec, false)) {
+            impl->using_hardware = false;
+            LOG_INFO(HW_GPU, "nx2 video: hardware decode failed for \"{}\", falling back to CPU",
+                     impl->name);
+            impl->context->SendPacket(packet);
+        }
+    }
     impl->Receive(pictures);
 }
 
