@@ -108,6 +108,7 @@ add_executable(tests
     core/ldn.cpp
     core/internal_network/socket_proxy.cpp
     core/priority_queue.cpp
+    core/vfs_vector.cpp
     core/internal_network/network.cpp
     video_core/memory_tracker.cpp
     video_core/h264_packet.cpp
@@ -132,6 +133,7 @@ add_executable(tests
     video_core/ampere_vote.cpp
     video_core/shader_attributes.cpp
     video_core/indirect_reset.cpp
+    video_core/usage_tracker.cpp
     input_common/calibration_configuration_job.cpp
 )
 
