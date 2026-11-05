@@ -171,6 +171,17 @@ void LoadOverrides(std::uint64_t program_id, const VideoCore::RendererBase& rend
             OverrideIfGlobal(Settings::values.gpu_accuracy, Settings::GpuAccuracy::Low);
             OverrideIfGlobal(Settings::values.gpu_fence_behavior, Settings::GpuFenceBehavior::Balanced);
             break;
+        case TitleID::DonkeyKongBananza:
+            // GPU accuracy High kept the GPU thread split off; fps drops below 30 then slowed the
+            // game itself down. Low + no reactive flushing (as Mario Tennis Fever) keeps it at speed.
+            OverrideIfGlobal(Settings::values.gpu_accuracy, Settings::GpuAccuracy::Low);
+            OverrideIfGlobal(Settings::values.use_reactive_flushing, false);
+            // The game times its GPU work with query timestamps: at the Normal GPU clock it saw
+            // the emulator's frame time, lowered its resolution to 960x540 and held swap interval
+            // 2-3 (~25 fps). Its game step follows the interval it requests (held to 2 vblanks
+            // while it asked for 1 it ran at half speed), so the clock only changes which it picks.
+            OverrideIfGlobal(Settings::values.gpu_clock, Settings::GpuClock::Boost);
+            break;
         default:
             break;
     }
