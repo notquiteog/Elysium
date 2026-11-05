@@ -7,7 +7,7 @@
 -->
 
 <p align="center">
-  <img src="dist/branding/elysium_icon_with_logo.png" alt="Elysium" width="600">
+  <img src="dist/branding/elysium_icon.png" alt="Elysium" width="256">
 </p>
 
 # Elysium
@@ -44,7 +44,7 @@ Keep changes focused and distinguish code-level checks from actual gameplay test
 
 ## Artwork
 
-The logo, icon and library artwork in [dist/branding](dist/branding) were created by YOB (yobslab) for Lichii. Windows, Linux and macOS icon resources are generated from that artwork by [Generate-ElysiumIcons.ps1](tools/Generate-ElysiumIcons.ps1).
+The app icon is [dist/branding/elysium_icon.png](dist/branding/elysium_icon.png). Windows, Linux and macOS icon resources are generated from it by [Generate-ElysiumIcons.ps1](tools/Generate-ElysiumIcons.ps1). The other logo and library artwork in [dist/branding](dist/branding) was created by YOB (yobslab) for Lichii.
 
 ## Credits and license
 
