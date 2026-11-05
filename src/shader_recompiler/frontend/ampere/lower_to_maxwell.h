@@ -115,7 +115,7 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
     control_entries[0] = true;
     const auto write_count = [](const Instruction& instruction) -> std::optional<u32> {
         switch (instruction.Bits(0, 12)) {
-        case 0x202: case 0x802: case 0x424: case 0x724: case 0x824: case 0xe24: case 0x227:
+        case 0x202: case 0x802: case 0x803: case 0x424: case 0x724: case 0x824: case 0xe24: case 0x227:
         case 0x810: case 0x819: case 0x845: case 0x906: case 0x820:
         case 0x812: case 0x589:
         case 0x212: case 0x207: case 0x807: case 0x208: case 0x808:
@@ -123,7 +123,6 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
         case 0x223: case 0x423: case 0x623: case 0x823: case 0xa23:
         case 0x243: case 0x245: case 0x306:
         case 0x919: case 0xc12: case 0x300: case 0x210: case 0x308:
-        case 0x803: // P2R, scheduled between a call's link setup and the CALL in Ocarina of Time
             return instruction.Bits(16, 8) == 255 ? 0U : 1U;
         case 0x225: case 0x625: case 0x825:
             return 2;
@@ -1142,7 +1141,8 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
             if (target == ~0U || target == 255 || (!subword_load && width != 4 && width != 5) ||
                 (subword_load && opcode == 0xab9 && offset >= 0x8000) ||
                 (width == 5 && ((uniform_dest & 1) || uniform_register(uniform_dest + 1) != target + 1)) ||
-                bank() >= 18 || offset % alignment || insn.Bits(62, 2) ||
+                // An index register can align the offset; the host reads the aligned word either way.
+                bank() >= 18 || (opcode == 0xab9 && offset % alignment) || insn.Bits(62, 2) ||
                 (insn.words[2] & ~0xe00U) != (opcode == 0xab9 ? 0U : 0x08000000U) ||
                 index_target == ~0U)
                 return fail(index, "native uniform constant load mode");
@@ -2107,42 +2107,33 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
             break;
         }
         case 0x243:
-            // F2IP.U8.F32 Rd, Ra, Rb, Rc: Rb to byte 0, Ra to byte 1, Rc's high half above.
-            if ((insn.words[1] & ~0xffU) || (insn.words[2] & ~0xc0ffU) != 0x400U)
+            // F2IP.U8.F32 Rd, Ra, Rb, RZ: Rb's byte in bits 0-7 and Ra's in bits 8-15. The default
+            // rounding (bits 78-79 clear) packs unorm values already scaled by 255.
+            if ((insn.words[1] & ~0xffU) ||
+                (insn.words[2] != 0x0000c4ffU && insn.words[2] != 0x000004ffU))
                 return fail(index, "native packed float-to-byte mode");
-            if (insn.Bits(24, 8) != 255 || insn.Bits(64, 8) != 255 || insn.Bits(78, 2) != 3) {
-                const u32 rounding = insn.Bits(78, 2);
-                // Clamp a float (NaN to 0) to [0, 255] in R250 and convert it in place.
-                const auto convert_byte = [&](u32 source) {
-                    emit(0x5800000000000000ULL | predicate | 250 | (u64{source} << 8) |
+            if (insn.Bits(24, 8) != 255 || insn.words[2] == 0x000004ffU) {
+                const auto to_byte = [&](u32 source, u32 target) {
+                    emit(0x5800000000000000ULL | predicate | target | (u64{source} << 8) |
                          (u64{source} << 20) | (u64{7} << 39) | (u64{7} << 48));
-                    emit(0x5c40000000000000ULL | predicate | 250 | (u64{source} << 8) |
-                         (u64{250} << 20) | (u64{7} << 48));
+                    emit(0x5c40000000000000ULL | predicate | target | (u64{source} << 8) |
+                         (u64{target} << 20) | (u64{7} << 48));
                     mov_imm(252, 0);
-                    emit(0x5c60000000000000ULL | predicate | 250 | (u64{250} << 8) |
+                    emit(0x5c60000000000000ULL | predicate | target | (u64{target} << 8) |
                          (u64{252} << 20) | (u64{15} << 39));
                     mov_imm(252, 0x437f0000U);
-                    emit(0x5c60000000000000ULL | predicate | 250 | (u64{250} << 8) |
+                    emit(0x5c60000000000000ULL | predicate | target | (u64{target} << 8) |
                          (u64{252} << 20) | (u64{7} << 39));
-                    emit(0x5cb0000000000000ULL | predicate | 250 | (u64{2} << 8) | (u64{2} << 10) |
-                         (u64{250} << 20) | (u64{rounding} << 39));
+                    emit(0x5cb0000000000000ULL | predicate | target | (u64{2} << 8) | (u64{2} << 10) |
+                         (u64{target} << 20) | (u64{insn.Bits(78, 2)} << 39));
                 };
-                convert_byte(insn.Bits(32, 8));
-                emit(0x5c98000000000000ULL | predicate | 251 | (u64{15} << 39) | (u64{250} << 20));
-                if (insn.Bits(24, 8) != 255) {
-                    convert_byte(insn.Bits(24, 8));
-                    emit(0x3848000000000000ULL | predicate | 250 | (u64{250} << 8) | (u64{8} << 20));
-                    emit(0x5c40000000000000ULL | predicate | 251 | (u64{251} << 8) |
-                         (u64{250} << 20) | (u64{1} << 41) | (u64{7} << 48));
+                to_byte(insn.Bits(32, 8), 250);
+                if (insn.Bits(24, 8) == 255) {
+                    emit(base(0x5c98000000000000ULL) | (u64{15} << 39) | (u64{250} << 20));
+                    break;
                 }
-                if (insn.Bits(64, 8) != 255) {
-                    mov_imm(252, 0xffff0000U);
-                    emit(0x5c40000000000000ULL | predicate | 250 | (u64{insn.Bits(64, 8)} << 8) |
-                         (u64{252} << 20) | (u64{7} << 48));
-                    emit(0x5c40000000000000ULL | predicate | 251 | (u64{251} << 8) |
-                         (u64{250} << 20) | (u64{1} << 41) | (u64{7} << 48));
-                }
-                emit(base(0x5c98000000000000ULL) | (u64{15} << 39) | (u64{251} << 20));
+                to_byte(insn.Bits(24, 8), 251);
+                emit(base(0x5c18000000000000ULL) | (u64{251} << 8) | (u64{250} << 20) | (u64{8} << 39));
                 break;
             }
             insn.words[0] &= 0x00ffffffU;

@@ -282,12 +282,12 @@ TEST_CASE("Ampere Ocarina byte constant loads, ULEA carries to UP3 and two-sourc
         return (word >> 52) == 0x38e && field(word, 0, 8) == 239 && field(word, 20, 8) == 8;
     }));
 
-    // F2IP.U8.F32.NTZ R45, R44, R21, RZ: two byte conversions, R44's shifted into byte 1.
+    // F2IP.U8.F32.NTZ R45, R44, R21, RZ: two byte conversions, R44's scaled into byte 1.
     const auto pack = lower({{0x2c2d7243, 0x00000015, 0x000004ff, 0x000fc400}});
     INFO(pack.error);
     REQUIRE(static_cast<bool>(pack));
     CHECK(CountMaxwell(pack, 0x5cb, 52) == 2);
-    CHECK(FindMaxwell(pack, 0x384, 52) != 0);
+    CHECK(FindMaxwell(pack, 0x5c1, 52) != 0);
 
     // ULDC UR7, c[0x4][UR15+0x29]: only the indexed sum has to be aligned.
     const auto indexed = lower({{0x0f077abb, 0x01000a40, 0x08000800, 0x000fc600}});
