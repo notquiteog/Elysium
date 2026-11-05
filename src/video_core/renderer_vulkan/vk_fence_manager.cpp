@@ -75,6 +75,7 @@ void FenceManager::WaitFence(Fence& fence) {
 }
 
 void FenceManager::SubmitDeferredWork() {
+    // Only the split's back defers (Scheduler::DeferFlush) and submits.
     if (VideoCommon::GpuSplit::OnBackThread()) {
         scheduler.FlushDeferred();
     }
