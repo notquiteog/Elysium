@@ -83,7 +83,10 @@ public:
                 const Word flags = qmd[base + 1];
                 if (!(flags & (1U << 23))) continue;
                 const bool add = (flags & (1U << 26)) != 0;
-                if ((flags & (0x3bU << 24)) || (flags >> 30) != 1 ||
+                // Bits 30-31 are the structure size: 1 = one word, 0 = four words (payload, then a
+                // 64-bit timestamp at +8). Orbitals uses four words on the word 52 queue release.
+                // ponytail: add and max releases still write only the payload word, no timestamp.
+                if ((flags & (0x3bU << 24)) || (flags >> 30) > 1 ||
                     (add && (flags & (7U << 20)))) return "unsupported QMD release format";
                 if (add) {
                     if constexpr (!std::is_invocable_r_v<bool, Release, Address, Word, Word>)

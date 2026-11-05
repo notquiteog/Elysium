@@ -404,7 +404,9 @@ bool KeplerCompute::ProcessNativeMethod(Core::System& system, u32 method, u32 ar
                         LOG_INFO(HW_GPU, "Semaphore watch: QMD release {:#x} = {:#x} flags {:#x}", address, payload, flags);
                     }
                     rasterizer->Query(address, VideoCommon::QueryType::Payload,
-                        VideoCommon::QueryPropertiesFlags::IsAFence, payload, 0);
+                        (flags >> 30) == 1 ? VideoCommon::QueryPropertiesFlags::IsAFence
+                                           : VideoCommon::QueryPropertiesFlags::HasTimeout,
+                        payload, 0);
                 }
                 return true;
             }, [&](const auto& descriptor) { return DispatchNativeCompute(descriptor); });
