@@ -1465,6 +1465,25 @@ TEST_CASE("Fast Fusion nonadjacent call links require a closed write-safe window
     CHECK_FALSE(LowerToMaxwell(callee_entry));
 }
 
+TEST_CASE("Ocarina call links accept a P2R between the setup and the CALL",
+          "[video_core][ampere][fast_fusion_logged]") {
+    // MOV R18, ret; P2R R16, PR, RZ, 0x40; CALL, from Ocarina of Time (here R9 and R8).
+    for (const u32 p2r_dest : {8U, 9U}) {
+        const std::array<Instruction, 7> code{{
+            {{0x00097802, 0x30, 0xf00, 0}},
+            {{0xff007803U | (p2r_dest << 16), 0x40, 0, 0}},
+            {{0x00007944, 0x10, 0x03c00000, 0}},
+            Exit,
+            CapturedImmediatePackedFloatTrunc,
+            {{0x00047202, 9, 0xf00, 0}},
+            {{0x04007950, 0xffffff90, 0x03c3ffff, 0}},
+        }};
+        const auto lowered = LowerToMaxwell(code);
+        INFO(lowered.error);
+        CHECK(static_cast<bool>(lowered) == (p2r_dest != 9));
+    }
+}
+
 TEST_CASE("Fast Fusion adjacent callees reject implicit vector writes over their links",
           "[video_core][ampere][fast_fusion_logged]") {
     for (const auto load :

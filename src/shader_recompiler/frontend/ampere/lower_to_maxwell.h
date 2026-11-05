@@ -123,6 +123,7 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
         case 0x223: case 0x423: case 0x623: case 0x823: case 0xa23:
         case 0x243: case 0x245: case 0x306:
         case 0x919: case 0xc12: case 0x300: case 0x210: case 0x308:
+        case 0x803: // P2R, scheduled between a call's link setup and the CALL in Ocarina of Time
             return instruction.Bits(16, 8) == 255 ? 0U : 1U;
         case 0x225: case 0x625: case 0x825:
             return 2;
