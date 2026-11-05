@@ -389,10 +389,9 @@ Tegra::Texture::TICEntry GenericEnvironment::ReadTextureInfo(GPUVAddr tic_addr, 
     const auto handle{Tegra::Texture::TexturePair(raw, via_header_index)};
     const u32 index{Tegra::Texture::TextureHeaderIndex(handle.first, tic_limit,
                                                        gpu_memory->UsesNativeTiling())};
-    ASSERT(index <= tic_limit);
     const GPUVAddr descriptor_addr{tic_addr + index * sizeof(Tegra::Texture::TICEntry)};
-    Tegra::Texture::TICEntry entry;
-    gpu_memory->ReadBlock(descriptor_addr, &entry, sizeof(entry));
+    const Tegra::Texture::TICEntry entry{
+        Tegra::Texture::ReadTextureDescriptor(*gpu_memory, tic_addr, tic_limit, via_header_index, raw)};
     if (entry.format.Value() == Tegra::Texture::TextureFormat{} &&
         std::getenv("EDEN_NX2_RENDER_TRACE")) {
         static std::atomic<u32> traces{};

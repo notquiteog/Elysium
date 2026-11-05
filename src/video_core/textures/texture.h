@@ -298,6 +298,22 @@ struct TICEntry {
 };
 static_assert(sizeof(TICEntry) == 0x20, "TICEntry has wrong size");
 
+/// Resolve and read a texture header, returning the same empty descriptor as a snapshot miss.
+template <typename Memory>
+[[nodiscard]] TICEntry ReadTextureDescriptor(Memory& memory, GPUVAddr pool_address, u32 limit,
+                                             bool via_header_index, u32 raw_handle) {
+    const auto [texture_index, sampler_index] = TexturePair(raw_handle, via_header_index);
+    (void)sampler_index;
+    const u32 index = TextureHeaderIndex(texture_index, limit, memory.UsesNativeTiling());
+    if (index > limit) {
+        return {};
+    }
+    TICEntry entry{};
+    memory.ReadBlock(pool_address + static_cast<GPUVAddr>(index) * sizeof(TICEntry), &entry,
+                     sizeof(entry));
+    return entry;
+}
+
 enum class WrapMode : u32 {
     Wrap = 0,
     Mirror = 1,
