@@ -63,6 +63,35 @@ void DrainBack() {
     VideoCommon::GpuSplit::Get().Drain(VideoCommon::DrainSite::Acquire);
 }
 
+// EDEN_NX2_ACQUIRE_PRECHECK=1: a GEQUAL acquire whose word already holds the value continues
+// without draining the split, if nothing queued for the back may write the word (a release that
+// lowers it, a fence action) and no GPU work ever wrote its page (then no cache holds a newer word
+// than guest memory). It counts as a host sync for later GPU-written command lists, as the drain
+// did. Equal and mask acquires always drain. Ported from zortos293/Lichii#166 (e56b37fc0a), with
+// the queued-writer check added.
+bool GequalMetWithoutDrain(DmaPusher& dma_pusher, GPUVAddr address, u32 value) {
+    static const bool enabled = [] {
+        const char* setting = std::getenv("EDEN_NX2_ACQUIRE_PRECHECK");
+        return setting != nullptr && setting[0] != '0';
+    }();
+    auto& split = VideoCommon::GpuSplit::Get();
+    if (!enabled || !split.Active()) {
+        return false;
+    }
+    auto& memory = dma_pusher.memory_manager;
+    if (memory.OverlapsNativeSyncpointShim(address, sizeof(u32)) ||
+        split.HasQueuedMemoryWriters(address, address + sizeof(u32))) {
+        return false;
+    }
+    const auto device = memory.GpuToCpuAddress(address);
+    if (!device || Nx2IsGpuWritten(*device) || memory.Read<u32>(address) < value) {
+        return false;
+    }
+    split.NoteSync();
+    VideoCommon::Nx2Profile::Add(VideoCommon::Nx2Profile::Counter::AcquiresFast, 1);
+    return true;
+}
+
 // The fence manager records into the scheduler and downloads the CPU's writes over GPU data:
 // the back's state, which a drained back still uses from its idle hook (it submits).
 void ReleaseFences(DmaPusher& dma_pusher) {
@@ -118,6 +147,11 @@ bool Puller::CanResumeAcquire(DmaPusher& dma_pusher) {
     }
     if (MetBeforeDrain(dma_pusher, pending_acquire->address, pending_acquire->operation,
                        pending_acquire->value)) {
+        return true;
+    }
+    if (static_cast<GpuSemaphoreOperation>(pending_acquire->operation) ==
+            GpuSemaphoreOperation::AcquireGequal &&
+        GequalMetWithoutDrain(dma_pusher, pending_acquire->address, pending_acquire->value)) {
         return true;
     }
     // The release may still be queued for the split GPU thread's back half (and the caches
@@ -287,6 +321,10 @@ void Puller::ProcessSemaphoreTriggerMethod(DmaPusher& dma_pusher) {
         }
         VideoCommon::Nx2Profile::Add(VideoCommon::Nx2Profile::Counter::AcquireChecks, 1);
         if (MetBeforeDrain(dma_pusher, acquire.address, acquire.operation, acquire.value)) {
+            return;
+        }
+        if (op == GpuSemaphoreOperation::AcquireGequal &&
+            GequalMetWithoutDrain(dma_pusher, acquire.address, acquire.value)) {
             return;
         }
         DrainBack();

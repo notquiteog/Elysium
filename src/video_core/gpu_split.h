@@ -206,6 +206,9 @@ public:
     /// writes only where they overlap), the compute and copy work and the work before the last
     /// host-level wait, all sent so far.
     bool WaitForMemoryWriters(DrainSite site, GPUVAddr begin, GPUVAddr end);
+    /// Whether WaitForMemoryWriters(begin, end) would wait now: work that may write the range is
+    /// still queued for the back.
+    bool HasQueuedMemoryWriters(GPUVAddr begin, GPUVAddr end);
 
 private:
     friend struct GpuSplitTestAccess;
@@ -295,6 +298,9 @@ private:
     };
     static constexpr size_t MaxRangedWrites = 256;
     std::deque<RangedWrite> ranged_writes;
+    /// Drops consumed ranged writes; returns the position a memory read of [begin, end) waits
+    /// for and the method behind it.
+    u64 MemoryWriterTarget(u64 done, GPUVAddr begin, GPUVAddr end, u32& target_method);
     u64 published_local{};
     u64 consumed_cache{};
     /// Words between publishes: small right after a drain, while the back has nothing to do.

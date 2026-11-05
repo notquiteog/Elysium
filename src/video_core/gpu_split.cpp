@@ -280,22 +280,33 @@ void GpuSplit::RangeLastWrite(GPUVAddr begin, GPUVAddr end) {
     ranged_writes.push_back({write_position, begin, end, method});
 }
 
-bool GpuSplit::WaitForMemoryWriters(DrainSite site, GPUVAddr begin, GPUVAddr end) {
-    const u64 done = consumed.load(std::memory_order_acquire);
+u64 GpuSplit::MemoryWriterTarget(u64 done, GPUVAddr begin, GPUVAddr end, u32& target_method) {
     while (!ranged_writes.empty() && ranged_writes.front().position <= done) {
         ranged_writes.pop_front();
     }
-    const u64 unranged =
-        std::max({last_writer_position, last_sync_position, last_memory_write_position});
-    u64 target = unranged;
-    u32 target_method = last_memory_write_method;
+    u64 target = std::max({last_writer_position, last_sync_position, last_memory_write_position});
+    target_method = last_memory_write_method;
     for (const RangedWrite& write : ranged_writes) {
         if (write.begin < end && begin < write.end && write.position > target) {
             target = write.position;
             target_method = write.method;
         }
     }
-    target = std::min(target, write_position);
+    return std::min(target, write_position);
+}
+
+bool GpuSplit::HasQueuedMemoryWriters(GPUVAddr begin, GPUVAddr end) {
+    const u64 done = consumed.load(std::memory_order_acquire);
+    u32 method{};
+    return MemoryWriterTarget(done, begin, end, method) > done;
+}
+
+bool GpuSplit::WaitForMemoryWriters(DrainSite site, GPUVAddr begin, GPUVAddr end) {
+    const u64 done = consumed.load(std::memory_order_acquire);
+    u32 target_method{};
+    const u64 target = MemoryWriterTarget(done, begin, end, target_method);
+    const u64 unranged =
+        std::max({last_writer_position, last_sync_position, last_memory_write_position});
     if (Nx2Profile::Enabled()) {
         // What the read waits for: the newest writer it depends on.
         using Cause = Nx2Profile::DmaWaitCause;
