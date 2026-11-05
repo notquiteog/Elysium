@@ -53,10 +53,22 @@ public:
             } else {
                 last_forward_target = std::max(last_forward_target, static_cast<u32>(target / 16));
             }
+            // Every CALL but the lowering's predicated NOINC forward transfer (@P CALL.REL.NOINC
+            // over the next BRA) is a linked call, whose callee ends at a RET.
+            if (opcode == 0x944 && !(instruction.Bits(12, 4) != 7 && instruction.words[1] == 16 &&
+                                     instruction.words[2] == 0x03c00000))
+                has_calls = true;
             // The compiler ends every program with an unconditional branch to itself; with a jump
-            // table (whose targets live in a constant buffer) that is the only reliable end.
-            if (opcode == 0x947 && computed_branch && instruction.Bits(12, 4) == 7 &&
-                target == s64{index} * 16)
+            // table (whose targets live in a constant buffer) that is the only reliable end. It
+            // is also the end of a program without calls when no branch seen so far reaches past
+            // it: programs whose only exits are predicated (TotK's cutscene video network loops
+            // back with BRA and leaves through @P0 EXIT) have no unconditional EXIT to stop at.
+            // As in the lowering, a BRA.DIV (mode 2) never branches and bits 87-90 add a condition.
+            const bool always_branches =
+                instruction.Bits(32, 2) != 2 && instruction.Bits(87, 4) == 7;
+            if (opcode == 0x947 && instruction.Bits(12, 4) == 7 && target == s64{index} * 16 &&
+                (computed_branch || (always_branches && !has_calls &&
+                                     index >= last_forward_target && index >= last_call_target)))
                 return Result::Complete;
         }
         if (opcode == 0x949 || opcode == 0x958) computed_branch = true;

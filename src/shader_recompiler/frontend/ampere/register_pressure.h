@@ -112,6 +112,38 @@ inline RegisterPressure PrepareRegisterPressure(const Instruction& input, u32 re
         operand(16);
         operand(24);
         break;
+    case 0x21a:
+        operand(16);
+        operand(24);
+        operand(32);
+        break;
+    case 0x310:
+        operand(16, input.Bits(75, 2) == 3 ? 2 : 1);
+        operand(32, input.Bits(84, 2) == 3 ? 2 : 1);
+        break;
+    case 0xa28:
+    case 0x629:
+        operand(16, 2);
+        operand(24, 2);
+        break;
+    case 0x228:
+        operand(16, 2);
+        operand(24, 2);
+        operand(32, 2);
+        break;
+    case 0x22b:
+        operand(16, 2);
+        operand(24, 2);
+        operand(32, 2);
+        operand(64, 2);
+        break;
+    case 0xa2b:
+    case 0x62b:
+    case 0x229:
+        operand(16, 2);
+        operand(24, 2);
+        operand(64, 2);
+        break;
     case 0x308:
     case 0x202:
     case 0x243:

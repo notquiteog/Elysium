@@ -122,11 +122,12 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
         case 0x220: case 0xa20: case 0x221: case 0x421: case 0x621:
         case 0x223: case 0x423: case 0x623: case 0x823: case 0xa23:
         case 0x243: case 0x245: case 0x306:
-        case 0x919: case 0xc12: case 0x300: case 0x210: case 0x308:
+        case 0x919: case 0xc12: case 0x300: case 0x210: case 0x308: case 0x21a:
             return instruction.Bits(16, 8) == 255 ? 0U : 1U;
         case 0x225: case 0x625: case 0x825:
+        case 0x22b: case 0xa2b: case 0x62b: case 0x229: case 0x629: case 0x228: case 0xa28:
             return 2;
-        case 0x305:
+        case 0x305: case 0x310:
             return instruction.Bits(75, 2) == 3 ? 2U : 1U;
         case 0x83b:
             return instruction.Bits(72, 2) == 3 ? std::nullopt : std::optional<u32>{1U << instruction.Bits(72, 2)};
@@ -564,6 +565,71 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
                  (u64{251} << 20) | (u64{1} << 41) | (u64{7} << 48));
         };
         switch (opcode) {
+        case 0x22b: { // DFMA with register operands and no absolute modifiers.
+            const u32 a = insn.Bits(24, 8), b = insn.Bits(32, 8), c = insn.Bits(64, 8);
+            if ((insn.words[2] & ~0xc9ffU) || (insn.words[1] & ~0x800000ffU) || (dest & 1) ||
+                dest >= 254 || (a & 1) || a >= 254 || (b & 1) || b >= 254 || (c & 1) || c >= 254)
+                return fail(index, "native double fused multiply-add mode");
+            emit(base(0x5b70000000000000ULL) | (u64{a} << 8) | (u64{b} << 20) | (u64{c} << 39) |
+                 (u64{insn.Bits(72, 1) ^ insn.Bits(63, 1)} << 48) |
+                 (u64{insn.Bits(75, 1)} << 49) | (u64{insn.Bits(78, 2)} << 50));
+            break;
+        }
+        case 0xa2b: case 0x62b: { // DFMA with the multiplier or addend in a constant buffer.
+            const u32 a = insn.Bits(24, 8), reg = insn.Bits(64, 8);
+            if ((insn.words[2] & ~0xc9ffU) || insn.Bits(62, 1) || !valid_cbuf() ||
+                (insn.Bits(38, 16) % 8) || (dest & 1) || dest >= 254 ||
+                (a & 1) || a >= 254 || (reg & 1) || reg >= 254)
+                return fail(index, "native double fused multiply-add mode");
+            const bool constant_multiplier = opcode == 0xa2b;
+            const u32 negate_b = insn.Bits(72, 1) ^ insn.Bits(constant_multiplier ? 63 : 75, 1);
+            const u32 negate_c = insn.Bits(constant_multiplier ? 75 : 63, 1);
+            emit(base(constant_multiplier ? 0x4b70000000000000ULL : 0x5370000000000000ULL) |
+                 (u64{a} << 8) | cbuf() | (u64{reg} << 39) |
+                 (u64{negate_b} << 48) | (u64{negate_c} << 49) | (u64{insn.Bits(78, 2)} << 50));
+            break;
+        }
+        case 0x229: case 0x629: { // DADD with a register or constant-buffer second operand.
+            const u32 a = insn.Bits(24, 8), b = insn.Bits(64, 8);
+            const bool constant = opcode == 0x629;
+            if ((insn.words[2] & ~(constant ? 0xc300U : 0xcfffU)) || (dest & 1) || dest >= 254 ||
+                (a & 1) || a >= 254 || (constant ? (!valid_cbuf() || insn.Bits(38, 16) % 8)
+                                                         : (insn.words[1] || (b & 1) || b >= 254)))
+                return fail(index, "native double add mode");
+            emit(base(constant ? 0x4c70000000000000ULL : 0x5c70000000000000ULL) |
+                 (u64{a} << 8) | (constant ? cbuf() : u64{b} << 20) |
+                 (u64{insn.Bits(78, 2)} << 39) | (u64{insn.Bits(72, 1)} << 48) |
+                 (u64{insn.Bits(73, 1)} << 46) |
+                 (u64{insn.Bits(constant ? 63 : 75, 1)} << 45) |
+                 (u64{insn.Bits(constant ? 62 : 74, 1)} << 49));
+            break;
+        }
+        case 0xa28: case 0x228: { // DMUL with a constant-buffer or register operand and no absolute modifiers.
+            const u32 a = insn.Bits(24, 8), b = insn.Bits(32, 8);
+            const bool constant = opcode == 0xa28;
+            if ((insn.words[2] & ~0xc100U) || insn.Bits(62, 1) || (dest & 1) || dest >= 254 ||
+                (a & 1) || a >= 254 ||
+                (constant ? (!valid_cbuf() || insn.Bits(38, 16) % 8)
+                          : ((insn.words[1] & ~0x800000ffU) || (b & 1) || b >= 254)))
+                return fail(index, "native double multiply mode");
+            emit(base(constant ? 0x4c80000000000000ULL : 0x5c80000000000000ULL) | (u64{a} << 8) |
+                 (constant ? cbuf() : u64{b} << 20) | (u64{insn.Bits(78, 2)} << 39) |
+                 (u64{insn.Bits(72, 1) ^ insn.Bits(63, 1)} << 48));
+            break;
+        }
+        case 0x310: { // F2F between F32 and F64; the double operand is an aligned register pair.
+            const u32 source = insn.Bits(32, 8), dst_size = insn.Bits(75, 2), src_size = insn.Bits(84, 2);
+            const bool widening = dst_size == 3 && src_size == 2;
+            const bool narrowing = dst_size == 2 && src_size == 3;
+            if ((!widening && !narrowing) || insn.Bits(24, 8) || (insn.words[1] & ~0xc00000ffU) ||
+                (insn.words[2] & ~0x0030d800U) ||
+                (widening ? ((dest & 1) || dest >= 254) : ((source & 1) || source >= 254)))
+                return fail(index, "native double conversion mode");
+            emit(base(0x5ca8000000000000ULL) | (u64{dst_size} << 8) | (u64{src_size} << 10) |
+                 (u64{source} << 20) | (u64{insn.Bits(62, 1)} << 49) |
+                 (u64{insn.Bits(63, 1)} << 45) | (u64{insn.Bits(78, 2)} << 39));
+            break;
+        }
         case 0x304: { // F2F.F16.F32, scalar round-to-nearest conversion.
             if (insn.words[2] != 0x00200800 || insn.Bits(24, 8) ||
                 (insn.words[1] & ~0xc00000ffU))
@@ -3160,6 +3226,15 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
                  (u64{insn.Bits(76, 2)} << 52) | (u64{insn.Bits(78, 1)} << 55));
             break;
         }
+        case 0x21a: { // SGXT.U32 Rd, Ra, Rb: clamp the bit count before building BFE's control word.
+            if (insn.words[2] || (insn.words[1] & ~0xffU))
+                return fail(index, "native register sign extend mode");
+            emit(0x3820000000000000ULL | predicate | 250 | (u64{insn.Bits(32, 8)} << 8) |
+                 (u64{32} << 20) | (u64{7} << 39));
+            emit(0x3848000000000000ULL | predicate | 250 | (u64{250} << 8) | (u64{8} << 20));
+            emit(base(0x5c00000000000000ULL) | (u64{insn.Bits(24, 8)} << 8) | (u64{250} << 20));
+            break;
+        }
         case 0x81a: {
             if ((insn.words[2] & ~0x200U) || insn.words[1] > 32 || dest >= 255)
                 return fail(index, "native sign extend mode");
@@ -3859,8 +3934,17 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
             if (target < 0 || target % 16) return fail(index, "native branch destination alignment");
             relocations.push_back({static_cast<u32>(result.instructions.size()), target / 16});
             emit(0xe24000000000000fULL | branch_predicate);
-            if (computed_branch && target == s64{index} * 16 && branch_predicate == (u64{7} << 16))
-                return finish(index); // the closing self-branch
+            if (target == s64{index} * 16 && branch_predicate == (u64{7} << 16)) {
+                // The closing self-branch: the end with a jump table, or in a program without
+                // calls whose exits are all predicated once no branch reaches past it (TotK's
+                // cutscene video network loops back with BRA and leaves through @P0 EXIT).
+                if (computed_branch) return finish(index);
+                const bool pending_branch = std::any_of(relocations.begin(), relocations.end(),
+                    [&](const Relocation& relocation) { return relocation.target > index; });
+                if (call_targets.empty() && !pending_branch && !geometry_exit &&
+                    barrier_tokens.empty())
+                    return finish(index);
+            }
             break;
         }
         case 0x34e: {
