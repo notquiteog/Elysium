@@ -1075,6 +1075,16 @@ void ConstantPropagation(Environment& env, IR::Block& block, IR::Inst& inst) {
     case IR::Opcode::SelectF32:
     case IR::Opcode::SelectF64:
         return FoldSelect(inst);
+    case IR::Opcode::VoteAny:
+    case IR::Opcode::VoteAll:
+        // A lane running the vote is active, so a constant predicate is its own result. The
+        // lowered R2UR selects the broadcast with VoteAny(true); left unfolded, the texture pass
+        // tracked a bindless handle through the select's other value, the uniform register's
+        // stale content (Ocarina of Time took a buffer address in cbuf 0 as a texture handle).
+        if (inst.Arg(0).IsImmediate()) {
+            inst.ReplaceUsesWith(inst.Arg(0));
+        }
+        return;
     case IR::Opcode::FPNeg32:
         FoldWhenAllImmediates(inst, [](f32 a) { return -a; });
         return;
