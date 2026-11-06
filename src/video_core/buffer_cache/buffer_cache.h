@@ -283,9 +283,14 @@ std::optional<VideoCore::RasterizerDownloadArea> BufferCache<P>::GetFlushArea(DA
     area->start_address = device_addr_start_aligned;
     area->end_address = device_addr_end_aligned;
     if (memory_tracker.IsRegionPreflushable(device_addr, size)) {
-        area->preemtive = true;
+        // A preflushed region's data reaches guest memory when its fence pops (PopAsyncBuffers
+        // clears gpu_modified_ranges then). A read before that saw stale words: Ocarina of Time's
+        // whole screen flashed white near the sword boulder with EDEN_NX2_PREFLUSH=1 (232 flash
+        // watch reports a session, 3 without preflush). Such a read flushes on demand instead.
+        area->preemtive = !IsRegionGpuModified(device_addr_start_aligned,
+                                               device_addr_end_aligned - device_addr_start_aligned);
         return area;
-    };
+    }
     area->preemtive = !IsRegionGpuModified(device_addr_start_aligned,
                                            device_addr_end_aligned - device_addr_start_aligned);
     // A preflushable mark persists and downloads later GPU writes at every fence. Native titles
