@@ -40,7 +40,7 @@ void Jcms::OnUpdate(const Core::Timing::CoreTiming& core_timing) {
         const bool is_left = (index % 2) == 0;
         const auto& stick = is_left ? sticks.left : sticks.right;
         // Holding the stick click lifts that Joy-Con off the surface.
-        const bool is_lifted = is_left ? buttons.stick_l.Value() : buttons.stick_r.Value();
+        const bool is_lifted = (is_left ? buttons.stick_l.Value() : buttons.stick_r.Value()) != 0;
         constexpr s32 counts_per_full_tilt = 40;
 
         auto& lifo = lifos[index];
