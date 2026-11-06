@@ -11,6 +11,9 @@ namespace Tegra {
 
 namespace Host1x {
 
+// Set while this thread runs due actions; a cancel from inside one must not wait for itself.
+static thread_local bool running_on_this_thread = false;
+
 SyncpointManager::ActionHandle SyncpointManager::RegisterAction(
     std::atomic<u32>& syncpoint, std::list<RegisteredAction>& action_storage, u32 expected_value,
     std::function<void()>&& action) {
@@ -39,13 +42,18 @@ void SyncpointManager::DeregisterAction(std::list<RegisteredAction>& action_stor
     if (handle == 0) {
         return;
     }
-    std::scoped_lock lk(guard);
+    std::unique_lock lk(guard);
 
     for (auto it = action_storage.begin(); it != action_storage.end(); it++) {
         if (it->id == handle) {
             action_storage.erase(it);
             return;
         }
+    }
+    // Not registered any more: it may be due and about to run outside the guard. Return only once
+    // it ran, so a cancelled action never fires after its cancel, as when actions ran under it.
+    if (!running_on_this_thread) {
+        actions_done_cv.wait(lk, [this] { return running_actions == 0; });
     }
 }
 
@@ -84,16 +92,32 @@ void SyncpointManager::Increment(std::atomic<u32>& syncpoint, std::condition_var
                                  std::list<RegisteredAction>& action_storage) {
     auto new_value{syncpoint.fetch_add(1, std::memory_order_acq_rel) + 1};
 
-    std::scoped_lock lk(guard);
-    auto it = action_storage.begin();
-    while (it != action_storage.end()) {
-        if (it->expected_value > new_value) {
-            break;
+    // The due actions run after the guard is released: the composite action can block on the
+    // display (AcquireNextImage), and every other syncpoint user (the fencing thread's Increment,
+    // the guest's RegisterAction) then waited on the guard behind it, freezing Donkey Kong
+    // Bananza. Splicing keeps their value order.
+    std::list<RegisteredAction> due;
+    {
+        std::scoped_lock lk(guard);
+        auto it = action_storage.begin();
+        while (it != action_storage.end() && it->expected_value <= new_value) {
+            due.splice(due.end(), action_storage, it++);
         }
-        it->action();
-        it = action_storage.erase(it);
+        running_actions += due.empty() ? 0 : 1;
+        wait_cv.notify_all();
     }
-    wait_cv.notify_all();
+    if (due.empty()) {
+        return;
+    }
+    const bool outer = running_on_this_thread;
+    running_on_this_thread = true;
+    for (auto& registered : due) {
+        registered.action();
+    }
+    running_on_this_thread = outer;
+    std::scoped_lock lk(guard);
+    --running_actions;
+    actions_done_cv.notify_all();
 }
 
 void SyncpointManager::Wait(std::atomic<u32>& syncpoint, std::condition_variable& wait_cv,

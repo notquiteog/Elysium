@@ -91,6 +91,8 @@ private:
     u64 last_action_id{};
     std::condition_variable wait_guest_cv;
     std::condition_variable wait_host_cv;
+    std::condition_variable actions_done_cv;
+    u32 running_actions{}; ///< Increments running due actions outside the guard (guard held)
 };
 
 } // namespace Host1x
