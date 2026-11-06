@@ -179,6 +179,13 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
               "download button below.\nCurrently requires Fire Emblem: Fortune's Weave and "
               "EDEN_NX2_DLSS_REPLACEMENT=dlss. Without that override, its spatial workaround "
               "remains active.\nTakes effect when a game starts."));
+    INSERT(Settings, nvidia_dlss_nr, tr("NVIDIA DLSS 5 neural rendering (experimental)"),
+           tr("Runs NVIDIA DLSS 5 neural rendering on every presented frame, on GeForce RTX "
+              "50 series cards.\nNeeds NVIDIA Streamline 2.13 or newer with sl.dlss_nr.dll and "
+              "nvngx_dlssnr.dll in the streamline folder; Elysium does not ship NVIDIA's "
+              "files.\nTakes effect when a game starts."));
+    INSERT(Settings, nvidia_dlss_nr_intensity, tr("DLSS 5 Intensity:"),
+           tr("How strongly DLSS 5 neural rendering changes the image."));
     INSERT(Settings, anti_aliasing, tr("Anti-Aliasing Method:"),
            tr("The anti-aliasing method to use.\nSMAA offers the best quality.\nFXAA "
               "can produce a more stable picture in lower resolutions."));
@@ -533,6 +540,7 @@ std::unique_ptr<ComboboxTranslationMap> ComboboxEnumeration(QObject* parent) {
                           {
                               PAIR(FrameGenType, Lsfg, tr("Lossless Scaling (LSFG)")),
                               PAIR(FrameGenType, Fsr3, tr("Optical Flow Interpolation (built-in)")),
+                              PAIR(FrameGenType, Dlss, tr("NVIDIA DLSS Frame Generation")),
                           }});
     translations->insert({Settings::EnumMetadata<Settings::ScalingFilter>::Index(),
                           {

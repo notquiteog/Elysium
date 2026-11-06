@@ -40,6 +40,8 @@ namespace Vulkan {
 Device CreateDevice(const vk::Instance& instance, const vk::InstanceDispatch& dld,
                     VkSurfaceKHR surface);
 
+class StreamlineNeuralRendering;
+
 class RendererVulkan final : public VideoCore::RendererBase {
 public:
     explicit RendererVulkan(Core::Frontend::EmuWindow& emu_window,
@@ -111,6 +113,9 @@ private:
     RasterizerVulkan rasterizer;
 #ifdef HAS_LSFG
     FrameGen frame_gen;
+#ifdef EGLANTINE_STREAMLINE
+    std::unique_ptr<StreamlineNeuralRendering> neural_rendering;
+#endif
 #endif
     std::optional<TurboMode> turbo_mode;
 

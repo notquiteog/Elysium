@@ -1350,6 +1350,7 @@ private:
     std::set<std::string, std::less<>> loaded_extensions;    ///< Loaded Vulkan extensions.
     bool streamline_extensions{}; ///< NVIDIA DLSS's extensions are loaded.
     bool streamline_attached{};   ///< Streamline has this device.
+    u32 streamline_queues{};      ///< Graphics family queues created for Streamline.
     std::vector<size_t> valid_heap_memory;                   ///< Heaps used.
     size_t main_heap{};       ///< Largest device-local heap, where images live.
     u64 heap_size_limit{};    ///< EDEN_NX2_VRAM_LIMIT_MIB for device-local heaps, 0 if unset.

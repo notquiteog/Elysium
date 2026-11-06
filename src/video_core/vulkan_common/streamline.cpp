@@ -47,6 +47,12 @@ struct State {
     std::wstring model_dir;
     std::vector<std::string> instance_extensions;
     std::vector<std::string> device_extensions;
+    u32 extra_graphics_queues{};
+    u32 extra_compute_queues{};
+    // Loaded at start; cleared when the device can't run them.
+    bool dlss{};
+    bool neural_rendering{};
+    bool frame_gen{};
     bool started{};
     bool attached{};
 };
@@ -212,7 +218,8 @@ bool Load(State& state, const std::filesystem::path& path) {
         Resolve(m, "slSetConstants", api.set_constants) &&
         Resolve(m, "slEvaluateFeature", api.evaluate_feature) &&
         Resolve(m, "slFreeResources", api.free_resources) &&
-        Resolve(m, "slSetVulkanInfo", api.set_vulkan_info)) {
+        Resolve(m, "slSetVulkanInfo", api.set_vulkan_info) &&
+        Resolve(m, "slSetTagForFrame", api.set_tag_for_frame)) {
         return true;
     }
     FreeLibrary(state.module);
@@ -221,12 +228,34 @@ bool Load(State& state, const std::filesystem::path& path) {
     return false;
 }
 
-std::vector<std::string> Names(uint32_t count, const char** names) {
-    std::vector<std::string> result;
+void AddNames(std::vector<std::string>& list, uint32_t count, const char** names) {
     for (uint32_t i = 0; i < count; ++i) {
-        result.emplace_back(names[i]);
+        if (std::ranges::find(list, names[i]) == list.end()) {
+            list.emplace_back(names[i]);
+        }
     }
-    return result;
+}
+
+bool WantsFrameGen() {
+    return Settings::values.frame_gen.GetValue() &&
+           Settings::values.frame_gen_type.GetValue() == Settings::FrameGenType::Dlss;
+}
+
+const char* FeatureName(sl::Feature feature) {
+    switch (feature) {
+    case sl::kFeatureDLSS:
+        return "DLSS";
+    case sl::kFeatureDLSS_NR:
+        return "DLSS 5 neural rendering";
+    case sl::kFeatureDLSS_G:
+        return "DLSS frame generation";
+    case sl::kFeatureReflex:
+        return "Reflex";
+    case sl::kFeaturePCL:
+        return "PC latency";
+    default:
+        return "feature";
+    }
 }
 
 } // Anonymous namespace
@@ -296,7 +325,10 @@ bool Start() {
     if (state.started) {
         return true;
     }
-    if (!Settings::values.nvidia_dlss.GetValue()) {
+    const bool want_dlss = Settings::values.nvidia_dlss.GetValue();
+    const bool want_neural = Settings::values.nvidia_dlss_nr.GetValue();
+    const bool want_frame_gen = WantsFrameGen();
+    if (!want_dlss && !want_neural && !want_frame_gen) {
         return false;
     }
     if (!state.module) {
@@ -323,16 +355,27 @@ bool Start() {
                 state.model_dir = dir.wstring();
                 LOG_INFO(Render_Vulkan, "Using the NVIDIA app's DLSS {}", files.app_model_version);
             }
-        } else if (files.model.empty()) {
+        } else if (files.model.empty() && want_dlss) {
             LOG_WARNING(Render_Vulkan, "No nvngx_dlss.dll in {} and no DLSS from the NVIDIA app",
                         Common::FS::PathToUTF8String(files.folder));
         }
     }
 
+    // Frame generation needs Reflex, and PCL for its markers.
+    std::vector<sl::Feature> features;
+    if (want_dlss) {
+        features.push_back(sl::kFeatureDLSS);
+    }
+    if (want_neural) {
+        features.push_back(sl::kFeatureDLSS_NR);
+    }
+    if (want_frame_gen) {
+        features.insert(features.end(), {sl::kFeatureDLSS_G, sl::kFeatureReflex, sl::kFeaturePCL});
+    }
+
     // Streamline's plugins come from the loader's folder or the NVIDIA app's downloads (OTA); the
     // DLSS model from the loader's folder, else the NVIDIA app's copy.
     const wchar_t* plugin_paths[] = {state.plugin_dir.c_str(), state.model_dir.c_str()};
-    const sl::Feature features[] = {sl::kFeatureDLSS};
     sl::Preferences preferences{};
     preferences.logLevel = LogLevel() >= 2 ? sl::LogLevel::eVerbose : sl::LogLevel::eDefault;
     preferences.logMessageCallback = LogFromStreamline;
@@ -341,8 +384,8 @@ bool Start() {
     preferences.flags = sl::PreferenceFlags::eDisableCLStateTracking |
                         sl::PreferenceFlags::eUseManualHooking | sl::PreferenceFlags::eAllowOTA |
                         sl::PreferenceFlags::eLoadDownloadedPlugins;
-    preferences.featuresToLoad = features;
-    preferences.numFeaturesToLoad = 1;
+    preferences.featuresToLoad = features.data();
+    preferences.numFeaturesToLoad = static_cast<uint32_t>(features.size());
     preferences.engine = sl::EngineType::eCustom;
     preferences.engineVersion = "1.0";
     preferences.projectId = PROJECT_ID;
@@ -354,38 +397,67 @@ bool Start() {
                   static_cast<int>(result));
         return false;
     }
-    sl::FeatureRequirements requirements{};
-    if (const sl::Result result = api.get_feature_requirements(sl::kFeatureDLSS, requirements);
-        result != sl::Result::eOk) {
-        LOG_WARNING(Render_Vulkan,
-                    "Streamline found no DLSS plugin (result {}); put sl.dlss.dll next to "
-                    "sl.interposer.dll or install the NVIDIA app. Using FSR 3.1",
-                    static_cast<int>(result));
+
+    state.instance_extensions.clear();
+    state.device_extensions.clear();
+    state.extra_graphics_queues = 0;
+    state.extra_compute_queues = 0;
+    const auto require = [&](sl::Feature feature) {
+        sl::FeatureRequirements requirements{};
+        if (const sl::Result result = api.get_feature_requirements(feature, requirements);
+            result != sl::Result::eOk) {
+            LOG_WARNING(Render_Vulkan,
+                        "Streamline found no {} plugin (result {}); put its sl.*.dll next to "
+                        "sl.interposer.dll",
+                        FeatureName(feature), static_cast<int>(result));
+            return false;
+        }
+        AddNames(state.instance_extensions, requirements.vkNumInstanceExtensions,
+                 requirements.vkInstanceExtensions);
+        AddNames(state.device_extensions, requirements.vkNumDeviceExtensions,
+                 requirements.vkDeviceExtensions);
+        state.extra_graphics_queues += requirements.vkNumGraphicsQueuesRequired;
+        state.extra_compute_queues += requirements.vkNumComputeQueuesRequired;
+        for (uint32_t i = 0; i < requirements.vkNumFeatures12; ++i) {
+            LOG_INFO(Render_Vulkan, "{} wants the Vulkan 1.2 feature {}", FeatureName(feature),
+                     requirements.vkFeatures12[i]);
+        }
+        for (uint32_t i = 0; i < requirements.vkNumFeatures13; ++i) {
+            LOG_INFO(Render_Vulkan, "{} wants the Vulkan 1.3 feature {}", FeatureName(feature),
+                     requirements.vkFeatures13[i]);
+        }
+        // Without a native optical flow queue DLSS-G runs its optical flow through interop.
+        if (requirements.vkNumOpticalFlowQueuesRequired != 0) {
+            LOG_INFO(Render_Vulkan, "{} would like {} optical flow queue(s); using interop",
+                     FeatureName(feature), requirements.vkNumOpticalFlowQueuesRequired);
+        }
+        return true;
+    };
+    state.dlss = want_dlss && require(sl::kFeatureDLSS);
+    state.neural_rendering = want_neural && require(sl::kFeatureDLSS_NR);
+    state.frame_gen = want_frame_gen && require(sl::kFeatureDLSS_G) &&
+                      require(sl::kFeatureReflex) && require(sl::kFeaturePCL);
+    if (!state.dlss && !state.neural_rendering && !state.frame_gen) {
         api.shutdown();
         return false;
     }
-    if (requirements.vkNumComputeQueuesRequired != 0 ||
-        requirements.vkNumGraphicsQueuesRequired != 0) {
-        LOG_WARNING(Render_Vulkan, "This DLSS wants extra Vulkan queues; using FSR 3.1");
-        api.shutdown();
-        return false;
-    }
-    state.instance_extensions =
-        Names(requirements.vkNumInstanceExtensions, requirements.vkInstanceExtensions);
-    state.device_extensions =
-        Names(requirements.vkNumDeviceExtensions, requirements.vkDeviceExtensions);
     // The KHR and EXT buffer device address extensions can't both be enabled.
     const auto& device_extensions = state.device_extensions;
     if (std::ranges::find(device_extensions, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME) !=
         device_extensions.end()) {
         std::erase(state.device_extensions, VK_EXT_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
     }
-    sl::FeatureVersion version{};
-    api.get_feature_version(sl::kFeatureDLSS, version);
-    LOG_INFO(Render_Vulkan, "NVIDIA Streamline {} started from {} (DLSS {})",
-             version.versionSL.toStr(),
+    for (const sl::Feature feature : features) {
+        sl::FeatureVersion version{};
+        if (api.get_feature_version(feature, version) == sl::Result::eOk) {
+            LOG_INFO(Render_Vulkan, "NVIDIA Streamline {}: {} (NGX {})", version.versionSL.toStr(),
+                     FeatureName(feature), version.versionNGX.toStr());
+        }
+    }
+    LOG_INFO(Render_Vulkan,
+             "NVIDIA Streamline started from {} ({} extra graphics, {} compute queues)",
              Common::FS::PathToUTF8String(std::filesystem::path{state.plugin_dir}),
-             version.versionNGX.toStr());
+             state.extra_graphics_queues, state.extra_compute_queues);
     state.started = true;
     return true;
 }
@@ -405,18 +477,31 @@ std::vector<std::string> DeviceExtensions() {
     return state.started ? state.device_extensions : std::vector<std::string>{};
 }
 
+u32 ExtraQueues() {
+    const State& state = GetState();
+    return state.started ? state.extra_graphics_queues + state.extra_compute_queues : 0;
+}
+
 bool AttachDevice(VkInstance instance, VkPhysicalDevice physical, VkDevice device,
-                  u32 graphics_family, vk::DeviceDispatch& dld) {
+                  u32 graphics_family, u32 extra_queues, vk::DeviceDispatch& dld) {
     State& state = GetState();
     if (!WantsDevice()) {
         return false;
     }
+    if (extra_queues < state.extra_graphics_queues + state.extra_compute_queues) {
+        LOG_WARNING(Render_Vulkan,
+                    "The GPU's graphics queue family is too small for DLSS frame generation");
+        state.frame_gen = false;
+    }
+    // Streamline's queues follow the renderer's one in the graphics family, graphics first.
     sl::VulkanInfo info{};
     info.device = device;
     info.instance = instance;
     info.physicalDevice = physical;
-    info.computeQueueFamily = graphics_family;
     info.graphicsQueueFamily = graphics_family;
+    info.graphicsQueueIndex = 1;
+    info.computeQueueFamily = graphics_family;
+    info.computeQueueIndex = 1 + state.extra_graphics_queues;
     if (const sl::Result result = state.api.set_vulkan_info(info); result != sl::Result::eOk) {
         LOG_ERROR(Render_Vulkan, "Streamline did not take the Vulkan device (result {})",
                   static_cast<int>(result));
@@ -425,12 +510,24 @@ bool AttachDevice(VkInstance instance, VkPhysicalDevice physical, VkDevice devic
     }
     sl::AdapterInfo adapter{};
     adapter.vkPhysicalDevice = physical;
-    if (const sl::Result result = state.api.is_feature_supported(sl::kFeatureDLSS, adapter);
-        result != sl::Result::eOk) {
-        LOG_WARNING(Render_Vulkan,
-                    "NVIDIA DLSS is not supported on this GPU or driver (Streamline result {}); "
-                    "using FSR 3.1",
-                    static_cast<int>(result));
+    const auto supported = [&](bool& loaded, sl::Feature feature) {
+        if (!loaded) {
+            return;
+        }
+        if (const sl::Result result = state.api.is_feature_supported(feature, adapter);
+            result != sl::Result::eOk) {
+            LOG_WARNING(Render_Vulkan,
+                        "NVIDIA {} is not supported on this GPU or driver (Streamline result {})",
+                        FeatureName(feature), static_cast<int>(result));
+            loaded = false;
+        }
+    };
+    supported(state.dlss, sl::kFeatureDLSS);
+    supported(state.neural_rendering, sl::kFeatureDLSS_NR);
+    supported(state.frame_gen, sl::kFeatureDLSS_G);
+    supported(state.frame_gen, sl::kFeatureReflex);
+    supported(state.frame_gen, sl::kFeaturePCL);
+    if (!state.dlss && !state.neural_rendering && !state.frame_gen) {
         Stop();
         return false;
     }
@@ -449,13 +546,27 @@ bool AttachDevice(VkInstance instance, VkPhysicalDevice physical, VkDevice devic
     hook(dld.vkQueuePresentKHR, "vkQueuePresentKHR");
     hook(dld.vkDeviceWaitIdle, "vkDeviceWaitIdle");
     state.attached = true;
-    LOG_INFO(Render_Vulkan, "NVIDIA DLSS is available through Streamline");
+    LOG_INFO(Render_Vulkan,
+             "NVIDIA Streamline attached: DLSS {}, DLSS 5 neural rendering {}, DLSS frame "
+             "generation {}",
+             state.dlss ? "on" : "off", state.neural_rendering ? "on" : "off",
+             state.frame_gen ? "on" : "off");
     return true;
 }
 
 bool IsDlssAvailable() {
     const State& state = GetState();
-    return state.started && state.attached;
+    return state.started && state.attached && state.dlss;
+}
+
+bool IsNeuralRenderingAvailable() {
+    const State& state = GetState();
+    return state.started && state.attached && state.neural_rendering;
+}
+
+bool IsFrameGenAvailable() {
+    const State& state = GetState();
+    return state.started && state.attached && state.frame_gen;
 }
 
 void Stop() {

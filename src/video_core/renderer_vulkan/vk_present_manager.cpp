@@ -12,6 +12,9 @@
 #endif
 #include "video_core/renderer_vulkan/vk_present_manager.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#ifdef EGLANTINE_STREAMLINE
+#include "video_core/renderer_vulkan/vk_streamline_present.h"
+#endif
 #include "video_core/renderer_vulkan/vk_swapchain.h"
 #include "video_core/vulkan_common/vulkan_device.h"
 #include "video_core/vulkan_common/vulkan_surface.h"
@@ -160,6 +163,12 @@ PresentManager::PresentManager(const vk::Instance& instance_,
         frame.storage_capable = storage_supported;
         free_queue.push_back(&frame);
     }
+
+#ifdef EGLANTINE_STREAMLINE
+    if (StreamlineFrameGen::IsEnabled()) {
+        streamline_frame_gen = std::make_unique<StreamlineFrameGen>(device, memory_allocator);
+    }
+#endif
 
     if (use_present_thread) {
         present_thread = std::jthread([this](std::stop_token token) { PresentThread(token); });
@@ -502,6 +511,12 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
 
     const VkImage image{swapchain.CurrentImage()};
     const VkExtent2D extent = swapchain.GetExtent();
+#ifdef EGLANTINE_STREAMLINE
+    if (streamline_frame_gen) {
+        streamline_frame_gen->BeginFrame(cmdbuf, extent, swapchain.GetImageViewFormat(),
+                                         static_cast<u32>(swapchain.GetImageCount()));
+    }
+#endif
     const std::array pre_barriers{
         VkImageMemoryBarrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -619,6 +634,11 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
         .pSignalSemaphores = &render_semaphore,
     };
 
+#ifdef EGLANTINE_STREAMLINE
+    if (streamline_frame_gen) {
+        streamline_frame_gen->BeforeSubmit();
+    }
+#endif
     // Submit the image copy/blit to the swapchain
     {
         std::scoped_lock submit_lock{scheduler.submit_mutex};
@@ -636,7 +656,17 @@ void PresentManager::CopyToSwapchainImpl(Frame* frame) {
     }
 
     // Present
+#ifdef EGLANTINE_STREAMLINE
+    if (streamline_frame_gen) {
+        streamline_frame_gen->BeforePresent();
+    }
+#endif
     swapchain.Present(render_semaphore);
+#ifdef EGLANTINE_STREAMLINE
+    if (streamline_frame_gen) {
+        streamline_frame_gen->AfterPresent();
+    }
+#endif
 }
 
 } // namespace Vulkan

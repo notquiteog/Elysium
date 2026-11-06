@@ -43,6 +43,7 @@
 #include "video_core/vulkan_common/vulkan_surface.h"
 #include "video_core/vulkan_common/vulkan_wrapper.h"
 #ifdef EGLANTINE_STREAMLINE
+#include "video_core/renderer_vulkan/vk_streamline_present.h"
 #include "video_core/vulkan_common/streamline.h"
 #endif
 #ifdef __ANDROID__
@@ -213,6 +214,13 @@ try
 #endif
 {
 
+#ifdef EGLANTINE_STREAMLINE
+    if (StreamlineNeuralRendering::IsEnabled()) {
+        neural_rendering =
+            std::make_unique<StreamlineNeuralRendering>(device, scheduler, memory_allocator);
+    }
+#endif
+
     if (Settings::values.renderer_force_max_clock.GetValue() && device.ShouldBoostClocks()) {
         turbo_mode.emplace(instance, dld);
         scheduler.RegisterOnSubmit([this] { turbo_mode->QueueSubmitted(); });
@@ -284,6 +292,11 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     blit_swapchain.DrawToFrame(device, rasterizer, frame, framebuffers,
                               render_window.GetFramebufferLayout(),
                               present_manager.SwapchainImageCount(), output_format, hdr_output);
+#ifdef EGLANTINE_STREAMLINE
+    if (neural_rendering && !hdr_output) {
+        neural_rendering->Apply(frame);
+    }
+#endif
 
 #ifdef HAS_LSFG
     if (!hdr_output) {

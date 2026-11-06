@@ -531,7 +531,7 @@ endif()
 # setting is on. Only Streamline's MIT-licensed headers are compiled in and nothing of NVIDIA's is
 # linked or copied: sl.interposer.dll and the DLSS plugins are loaded at run time from the user's PC.
 cmake_dependent_option(ENABLE_NVIDIA_DLSS "Enable NVIDIA DLSS through NVIDIA Streamline" ON
-                       "MSVC AND ARCHITECTURE_x86_64" OFF)
+                       "WIN32 AND ARCHITECTURE_x86_64" OFF)
 set(EGLANTINE_STREAMLINE_SDK "" CACHE PATH
     "NVIDIA Streamline SDK directory for its headers (empty: download them)")
 if (ENABLE_NVIDIA_DLSS)
@@ -544,9 +544,12 @@ if (ENABLE_NVIDIA_DLSS)
     target_sources(video_core PRIVATE
         renderer_vulkan/vk_streamline_dlss.cpp
         renderer_vulkan/vk_streamline_dlss.h
+        renderer_vulkan/vk_streamline_present.cpp
+        renderer_vulkan/vk_streamline_present.h
         vulkan_common/streamline.cpp
         vulkan_common/streamline.h
         vulkan_common/streamline_api.h
+        vulkan_common/streamline_dlss_nr.h
     )
     target_include_directories(video_core PRIVATE "${STREAMLINE_INCLUDE_DIR}")
     target_link_libraries(video_core PRIVATE version wintrust crypt32)

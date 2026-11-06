@@ -389,6 +389,19 @@ struct Values {
                                                        true};
     // NVIDIA DLSS (through NVIDIA Streamline) in place of a game's DLSS.
     SwitchableSetting<bool> nvidia_dlss{linkage, false, "nvidia_dlss", Category::Renderer};
+    // NVIDIA DLSS 5 neural rendering (DLSS-NR, through NVIDIA Streamline) on the presented frame.
+    SwitchableSetting<bool> nvidia_dlss_nr{linkage, false, "nvidia_dlss_nr", Category::Renderer};
+    SwitchableSetting<u32, true> nvidia_dlss_nr_intensity{linkage,
+                                                          100,
+                                                          0,
+                                                          100,
+                                                          "nvidia_dlss_nr_intensity",
+                                                          Category::Renderer,
+                                                          Specialization::Scalar |
+                                                              Specialization::Percentage,
+                                                          true,
+                                                          true,
+                                                          &nvidia_dlss_nr};
     SwitchableSetting<AspectRatio, true> aspect_ratio{linkage,
                                                       AspectRatio::R16_9,
                                                       "aspect_ratio",

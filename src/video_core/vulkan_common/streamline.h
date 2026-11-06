@@ -38,8 +38,9 @@ struct DlssFiles {
 /// A valid Authenticode signature from NVIDIA Corporation (DLSS models).
 [[nodiscard]] bool IsSignedByNvidia(const std::filesystem::path& path);
 
-/// When the NVIDIA DLSS setting is on, loads the user's sl.interposer.dll (checking NVIDIA's
-/// signature) and starts Streamline for DLSS. Call before creating the renderer's instance.
+/// When NVIDIA DLSS, DLSS 5 neural rendering or DLSS frame generation is turned on, loads the
+/// user's sl.interposer.dll (checking NVIDIA's signature) and starts Streamline with those
+/// features. Call before creating the renderer's instance.
 bool Start();
 
 /// Whether Streamline is running and waiting for the renderer's device.
@@ -49,13 +50,24 @@ bool Start();
 [[nodiscard]] std::vector<std::string> InstanceExtensions();
 [[nodiscard]] std::vector<std::string> DeviceExtensions();
 
-/// Hands the renderer's device to Streamline and routes the swapchain calls through it, as
-/// Streamline's manual hooking needs. Stops Streamline and returns false when DLSS can't run.
-bool AttachDevice(VkInstance instance, VkPhysicalDevice physical, VkDevice device,
-                  u32 graphics_family, vk::DeviceDispatch& dld);
+/// Queues the features want beyond the renderer's own, created in the graphics family after the
+/// renderer's queue (0 when Streamline isn't running).
+[[nodiscard]] u32 ExtraQueues();
 
-/// Whether DLSS can run on the attached device.
+/// Hands the renderer's device to Streamline and routes the swapchain calls through it, as
+/// Streamline's manual hooking needs. `extra_queues` is how many of ExtraQueues() the device was
+/// created with. Stops Streamline and returns false when no feature can run.
+bool AttachDevice(VkInstance instance, VkPhysicalDevice physical, VkDevice device,
+                  u32 graphics_family, u32 extra_queues, vk::DeviceDispatch& dld);
+
+/// Whether DLSS super resolution can run on the attached device.
 [[nodiscard]] bool IsDlssAvailable();
+
+/// Whether DLSS 5 neural rendering (DLSS-NR) can run on the attached device.
+[[nodiscard]] bool IsNeuralRenderingAvailable();
+
+/// Whether DLSS frame generation (DLSS-G, with Reflex and PCL) can run on the attached device.
+[[nodiscard]] bool IsFrameGenAvailable();
 
 /// Shuts Streamline down; call before the device is destroyed.
 void Stop();

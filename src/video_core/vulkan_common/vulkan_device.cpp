@@ -496,6 +496,14 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
     }
 
     SetupFamilies(surface);
+#ifdef EGLANTINE_STREAMLINE
+    // DLSS frame generation runs on queues of its own after ours in the graphics family.
+    if (Streamline::WantsDevice()) {
+        const std::vector families = physical.GetQueueFamilyProperties();
+        const u32 available = families[graphics_family].queueCount;
+        streamline_queues = (std::min)(Streamline::ExtraQueues(), available - 1);
+    }
+#endif
     const auto queue_cis = GetDeviceQueueCreateInfos();
 
     // GetSuitability has already configured the linked list of features for us.
@@ -770,8 +778,8 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
 
 #ifdef EGLANTINE_STREAMLINE
     if (streamline_extensions) {
-        streamline_attached =
-            Streamline::AttachDevice(instance, physical, *logical, graphics_family, dld);
+        streamline_attached = Streamline::AttachDevice(instance, physical, *logical,
+                                                       graphics_family, streamline_queues, dld);
     } else if (Streamline::WantsDevice()) {
         Streamline::Stop();
     }
@@ -1871,7 +1879,10 @@ void Device::CollectToolingInfo() {
 }
 
 std::vector<VkDeviceQueueCreateInfo> Device::GetDeviceQueueCreateInfos() const {
-    static constexpr float QUEUE_PRIORITY = 1.0f;
+    static constexpr std::array<float, 16> QUEUE_PRIORITIES{
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    };
 
     ::Common::unordered_set<u32> unique_queue_families{graphics_family, present_family};
     std::vector<VkDeviceQueueCreateInfo> queue_cis;
@@ -1884,9 +1895,12 @@ std::vector<VkDeviceQueueCreateInfo> Device::GetDeviceQueueCreateInfos() const {
             .flags = 0,
             .queueFamilyIndex = queue_family,
             .queueCount = 1,
-            .pQueuePriorities = nullptr,
+            .pQueuePriorities = QUEUE_PRIORITIES.data(),
         });
-        ci.pQueuePriorities = &QUEUE_PRIORITY;
+        if (queue_family == graphics_family) {
+            ci.queueCount =
+                (std::min)(1 + streamline_queues, static_cast<u32>(QUEUE_PRIORITIES.size()));
+        }
     }
 
     return queue_cis;

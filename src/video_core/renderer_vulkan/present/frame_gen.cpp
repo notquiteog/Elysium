@@ -202,7 +202,9 @@ void FrameGen::Process(const Device& device, Frame* frame, VkFormat format,
         shaders.emplace(device);
     }
 
-    if (unavailable || !Settings::values.frame_gen.GetValue()) {
+    // NVIDIA DLSS frame generation runs inside Streamline's present instead.
+    if (unavailable || !Settings::values.frame_gen.GetValue() ||
+        Settings::values.frame_gen_type.GetValue() == Settings::FrameGenType::Dlss) {
         if (chain || fsr3_chain) {
             scheduler.Finish();
             chain.reset();

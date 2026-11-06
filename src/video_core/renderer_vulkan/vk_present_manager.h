@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <boost/container/deque.hpp>
 
@@ -23,6 +24,7 @@ class EmuWindow;
 namespace Vulkan {
 
 class Device;
+class StreamlineFrameGen;
 class Scheduler;
 class Swapchain;
 
@@ -106,6 +108,10 @@ private:
     Swapchain& swapchain;
     vk::SurfaceKHR& surface;
     vk::CommandPool cmdpool;
+#ifdef EGLANTINE_STREAMLINE
+    /// NVIDIA DLSS frame generation; destroyed after the present thread stops.
+    std::unique_ptr<StreamlineFrameGen> streamline_frame_gen;
+#endif
     std::vector<Frame> frames;
     boost::container::deque<Frame*> present_queue;
     boost::container::deque<Frame*> free_queue;
