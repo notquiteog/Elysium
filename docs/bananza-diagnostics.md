@@ -72,7 +72,7 @@ the readback is diagnostic, not a rendering fix.
 Extract relevant lines while keeping the original log:
 
 ```powershell
-Select-String -Path .\eden_log.txt -Pattern 'DKB|Rejected program|shader rejected|Draw skipped|swap interval|Native indirect reset'
+Select-String -Path .\elysium_log.txt -Pattern 'DKB|Rejected program|shader rejected|Draw skipped|swap interval|Native indirect reset'
 ```
 
 ## Interpret the evidence

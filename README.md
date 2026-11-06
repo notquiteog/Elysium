@@ -18,11 +18,13 @@ This is an independent fork, not an official release of any of those projects. E
 
 ## Downloads and setup
 
-On Windows, extract the entire build archive and run **elysium.exe**. Only use games and system files you have legally obtained. Games, keys and firmware are not included.
+On Windows, extract the entire build archive and run **elysium.exe** (or `elysium-cli.exe` from a terminal). Only use games and system files you have legally obtained. Games, keys and firmware are not included.
 
 ### Existing saves and settings
 
-Elysium keeps the Eden data directory (`%APPDATA%\eden` on Windows) and its configuration keys, so it shares saves, settings and shader caches with Lichii, Eglantine and Eden. Back up your saves before testing experimental builds.
+Elysium uses Eglantine's data directory (`%APPDATA%\eglantine` on Windows) and configuration keys, so it shares saves, settings and shader caches with Eglantine. At first start it offers to migrate data from an older `eden` directory (Eden, Lichii and earlier Elysium builds). Back up your saves before testing experimental builds.
+
+Each game's pipeline cache carries over across Elysium updates. To move it to another PC, right-click the game and choose **Export Pipeline Cache**, then **Import Pipeline Cache** on the other PC.
 
 ## Compatibility and issue reports
 

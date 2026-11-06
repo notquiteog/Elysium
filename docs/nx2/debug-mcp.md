@@ -45,7 +45,7 @@ service once a game has loaded (`src/core/core.cpp:476`), and `ShutdownMainProce
 before anything else (`src/core/core.cpp:481`). The member is declared last
 (`src/core/core.cpp:610`), so it is also destroyed first. The tools therefore never see a
 half-built or half-destroyed system, and the server works the same under the Qt frontend and
-`eden-cli`.
+`elysium-cli`.
 
 Why not reuse the GDB stub? It speaks the GDB remote protocol and parks emulation on every stop
 (`src/core/debugger/debugger.cpp:82`). It is the right tool for guest breakpoints and stays as it
@@ -118,7 +118,7 @@ server is on but idle, its thread sleeps in `epoll`/IOCP.
   through their page tables, and never write either. They cannot reach host memory, the key area
   or the file system: an address resolves only through a page the guest has mapped. The adapter's `capture_image` reads only PNGs inside
   capture directories that it created in this session, and checks for path escapes.
-- **Logs.** `log_tail` returns lines that already go to `eden_log.txt`.
+- **Logs.** `log_tail` returns lines that already go to `elysium_log.txt`.
 - **No authentication.** Any local process may connect, the same as with the GDB stub. That is
   acceptable on the owner's single-user PC with the switch off by default. If it ever runs on a
   shared machine, add a token file in the dump directory that the adapter reads.
@@ -370,7 +370,7 @@ The core cannot save state. There is no serialisation of the kernel, services, t
 NCE CPU state, or the GPU caches, and Eden and yuzu never had it. The `saveState` in
 `src/yuzu/main_window.cpp` is Qt window geometry. Adding save states is a project of its own,
 not a tool. The practical substitute is a reproduction script: phase 2 input sequences, recorded
-once (`EDEN_NX2_KEY_RECORD` already records keys in `eden-cli`) and replayed after boot.
+once (`EDEN_NX2_KEY_RECORD` already records keys in `elysium-cli`) and replayed after boot.
 
 ## Running it on the PC
 
@@ -415,5 +415,5 @@ the server again on the same port.
   one `FrameDump`.
 - One request at a time. A second client waits while a capture runs.
 - `log_tail` sees lines logged after the game finished loading. The boot itself is in
-  `eden_log.txt`.
+  `elysium_log.txt`.
 - Runtime rejections last for one boot. Starting the next session clears them.

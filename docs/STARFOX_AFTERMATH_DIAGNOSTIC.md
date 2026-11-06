@@ -128,7 +128,7 @@ not a successful capture setup. Check the explicit DLL/export/API errors
 and, without modifying it, the user's NVIDIA Aftermath `ForceOff` setting.
 
 Wait at least 15 seconds after device loss before closing the process.
-Archive the entire private `user/log` directory, not just `eden_log.txt`,
+Archive the entire private `user/log` directory, not just `elysium_log.txt`,
 plus the exact executable commit and DLL hash. Do not archive `user/keys`,
 NAND, saves, or personal configuration for sharing.
 

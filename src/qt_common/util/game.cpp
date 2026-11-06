@@ -151,8 +151,8 @@ bool MakeShortcutIcoPath(const u64 program_id, const std::string_view game_file_
     }
 
     // Create icon file path
-    out_icon_path /= (program_id == 0 ? fmt::format("eden-{}.{}", game_file_name, ico_extension)
-                                      : fmt::format("eden-{:016X}.{}", program_id, ico_extension));
+    out_icon_path /= (program_id == 0 ? fmt::format("elysium-{}.{}", game_file_name, ico_extension)
+                                      : fmt::format("elysium-{:016X}.{}", program_id, ico_extension));
     return true;
 }
 
@@ -486,7 +486,7 @@ void CreateShortcut(const std::string& game_path, const u64 program_id,
     if (CreateShortcutMessagesGUI(ShortcutMessages::Fullscreen, qgame_title)) {
         arguments = "-f " + arguments;
     }
-    const std::string comment = fmt::format("Start {:s} with the Eden Emulator", game_title);
+    const std::string comment = fmt::format("Start {:s} with Elysium", game_title);
     const std::string categories = "Game;Emulator;Qt;";
     const std::string keywords = "Switch;Nintendo;";
 

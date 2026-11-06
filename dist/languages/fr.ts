@@ -3,13 +3,13 @@
     <name>AboutDialog</name>
     <message>
         <location filename="../../src/yuzu/aboutdialog.ui" line="14"/>
-        <source>About Eden</source>
-        <translation>À propos d&apos;Eden</translation>
+        <source>About Elysium</source>
+        <translation>À propos d&apos;Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/aboutdialog.ui" line="72"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:28pt;&quot;&gt;Eden&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:28pt;&quot;&gt;Eden&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:28pt;&quot;&gt;Elysium&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:28pt;&quot;&gt;Elysium&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/aboutdialog.ui" line="85"/>
@@ -25,7 +25,7 @@ hr { height: 1px; border-width: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Noto Sans'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:12pt;&quot;&gt;Eden is an experimental open-source emulator for the Nintendo Switch licensed under GPLv3.0+ which is based on the yuzu emulator which ended development back in March 2024. &lt;br /&gt;&lt;br /&gt;This software should not be used to play games you have not legally obtained.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:12pt;&quot;&gt;Elysium is an experimental open-source emulator for the Nintendo Switch licensed under GPLv3.0+ which is based on the yuzu emulator which ended development back in March 2024. &lt;br /&gt;&lt;br /&gt;This software should not be used to play games you have not legally obtained.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -33,7 +33,7 @@ hr { height: 1px; border-width: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Noto Sans&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:12pt;&quot;&gt;Eden est un émulateur expérimental open source pour la Nintendo Switch, sous licence GPLv3.0+, basé sur l’émulateur yuzu, dont le développement s’est arrêté en Mars 2024. &lt;br /&gt;&lt;br /&gt;Ce logiciel ne doit pas être utilisé pour jouer à des jeux que vous n’avez pas obtenus légalement.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:12pt;&quot;&gt;Elysium est un émulateur expérimental open source pour la Nintendo Switch, sous licence GPLv3.0+, basé sur l’émulateur yuzu, dont le développement s’est arrêté en Mars 2024. &lt;br /&gt;&lt;br /&gt;Ce logiciel ne doit pas être utilisé pour jouer à des jeux que vous n’avez pas obtenus légalement.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/aboutdialog.ui" line="131"/>
@@ -42,8 +42,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../../src/yuzu/aboutdialog.ui" line="147"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;&amp;quot;Nintendo Switch&amp;quot; is a trademark of Nintendo. Eden is not affiliated with Nintendo in any way.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;&amp;quot;Nintendo Switch&amp;quot; est une marque déposée de Nintendo. Eden n’est en aucun cas affilié à Nintendo.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;&amp;quot;Nintendo Switch&amp;quot; is a trademark of Nintendo. Elysium is not affiliated with Nintendo in any way.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;&amp;quot;Nintendo Switch&amp;quot; est une marque déposée de Nintendo. Elysium n’est en aucun cas affilié à Nintendo.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
 </context>
 <context>
@@ -2648,7 +2648,7 @@ L’activer permet de contourner ces confirmations et de quitter directement l�
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_debug.ui" line="449"/>
-        <source>When checked, yuzu will log statistics about the compiled pipeline cache</source>
+        <source>When checked, Elysium will log statistics about the compiled pipeline cache</source>
         <translation>Lorsque la case est cochée, yuzu enregistrera les journaux de statistiques à propos de la cache de pipeline compilée</translation>
     </message>
     <message>
@@ -2683,7 +2683,7 @@ L’activer permet de contourner ces confirmations et de quitter directement l�
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_debug.ui" line="488"/>
-        <source>Enables yuzu to check for a working Vulkan environment when the program starts up. Disable this if this is causing issues with external programs seeing yuzu.</source>
+        <source>Enables Elysium to check for a working Vulkan environment when the program starts up. Disable this if this is causing issues with external programs seeing yuzu.</source>
         <translation>Active yuzu pour chercher pour un environnement Vulkan fonctionnel quand le programme démarre. Desactiver ceci si cela cause des problèmes avec des programmes externes.</translation>
     </message>
     <message>
@@ -2793,8 +2793,8 @@ L’activer permet de contourner ces confirmations et de quitter directement l�
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_debug.ui" line="787"/>
-        <source>**This will be reset automatically when Eden closes.</source>
-        <translation>**Ceci sera automatiquement réinitialisé à la fermeture d&apos;Eden.</translation>
+        <source>**This will be reset automatically when Elysium closes.</source>
+        <translation>**Ceci sera automatiquement réinitialisé à la fermeture d&apos;Elysium.</translation>
     </message>
 </context>
 <context>
@@ -2838,8 +2838,8 @@ L’activer permet de contourner ces confirmations et de quitter directement l�
     <name>ConfigureDialog</name>
     <message>
         <location filename="../../src/yuzu/configuration/configure.ui" line="20"/>
-        <source>Eden Configuration</source>
-        <translation>Configuration d&apos;Eden</translation>
+        <source>Elysium Configuration</source>
+        <translation>Configuration d&apos;Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure.ui" line="67"/>
@@ -3190,8 +3190,8 @@ Would you like to delete the old save data?</source>
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_general.cpp" line="101"/>
-        <source>Eden</source>
-        <translation>Eden</translation>
+        <source>Elysium</source>
+        <translation>Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_general.cpp" line="102"/>
@@ -3751,8 +3751,8 @@ Would you like to delete the old save data?</source>
         <location filename="../../src/yuzu/configuration/configure_input_advanced.ui" line="2659"/>
         <location filename="../../src/yuzu/configuration/configure_input_advanced.ui" line="2701"/>
         <location filename="../../src/yuzu/configuration/configure_input_advanced.ui" line="2717"/>
-        <source>Requires restarting Eden</source>
-        <translation>Nécessite de redémarrer Eden.</translation>
+        <source>Requires restarting Elysium</source>
+        <translation>Nécessite de redémarrer Elysium.</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_input_advanced.ui" line="2668"/>
@@ -4469,8 +4469,8 @@ Pour inverser les axes, bougez d&apos;abord votre joystick verticalement, puis h
         <location filename="../../src/yuzu/configuration/configure_motion_touch.cpp" line="180"/>
         <location filename="../../src/yuzu/configuration/configure_motion_touch.cpp" line="186"/>
         <location filename="../../src/yuzu/configuration/configure_motion_touch.cpp" line="280"/>
-        <source>Eden</source>
-        <translation>Eden</translation>
+        <source>Elysium</source>
+        <translation>Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_motion_touch.cpp" line="166"/>
@@ -5465,8 +5465,8 @@ Faites glisser les points pour modifier la position ou double-cliquez sur les ce
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_touchscreen_advanced.ui" line="26"/>
-        <source>Warning: The settings in this page affect the inner workings of Eden&apos;s emulated touchscreen. Changing them may result in undesirable behavior, such as the touchscreen partially or not working. You should only use this page if you know what you are doing.</source>
-        <translation>Avertissement : Les paramètres de cette page affectent le fonctionnement interne de l&apos;écran tactile émulé d&apos;Eden. Les modifier peut entraîner un comportement indésirable, comme un écran tactile partiellement fonctionnel, voire complètement inutilisable. Vous ne devez utiliser cette page que si vous savez ce que vous faites.</translation>
+        <source>Warning: The settings in this page affect the inner workings of Elysium&apos;s emulated touchscreen. Changing them may result in undesirable behavior, such as the touchscreen partially or not working. You should only use this page if you know what you are doing.</source>
+        <translation>Avertissement : Les paramètres de cette page affectent le fonctionnement interne de l&apos;écran tactile émulé d&apos;Elysium. Les modifier peut entraîner un comportement indésirable, comme un écran tactile partiellement fonctionnel, voire complètement inutilisable. Vous ne devez utiliser cette page que si vous savez ce que vous faites.</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_touchscreen_advanced.ui" line="52"/>
@@ -5756,8 +5756,8 @@ Faites glisser les points pour modifier la position ou double-cliquez sur les ce
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_web.ui" line="25"/>
-        <source>Eden Web Service</source>
-        <translation>Service Web d&apos;Eden.</translation>
+        <source>Elysium Web Service</source>
+        <translation>Service Web d&apos;Elysium.</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/configure_web.ui" line="33"/>
@@ -5902,18 +5902,18 @@ Faites glisser les points pour modifier la position ou double-cliquez sur les ce
     <name>DepsDialog</name>
     <message>
         <location filename="../../src/yuzu/deps_dialog.ui" line="14"/>
-        <source>Eden Dependencies</source>
-        <translation>Dépendances d&apos;Eden</translation>
+        <source>Elysium Dependencies</source>
+        <translation>Dépendances d&apos;Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/deps_dialog.ui" line="72"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:28pt;&quot;&gt;Eden Dependencies&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:28pt;&quot;&gt;Dépendances d&apos;Eden&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:28pt;&quot;&gt;Elysium Dependencies&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:28pt;&quot;&gt;Dépendances d&apos;Elysium&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/deps_dialog.ui" line="85"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The projects that make Eden possible&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Les projets qui rendent Eden possible&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The projects that make Elysium possible&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Les projets qui rendent Elysium possible&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/deps_dialog.cpp" line="22"/>
@@ -6031,8 +6031,8 @@ Faites glisser les points pour modifier la position ou double-cliquez sur les ce
     </message>
     <message>
         <location filename="../../src/yuzu/multiplayer/message.cpp" line="32"/>
-        <source>Creating a room failed. Please retry. Restarting Eden might be necessary.</source>
-        <translation>La création du salon a échoué. Veuillez réessayer. Il peut être nécessaire de redémarrer Eden.</translation>
+        <source>Creating a room failed. Please retry. Restarting Elysium might be necessary.</source>
+        <translation>La création du salon a échoué. Veuillez réessayer. Il peut être nécessaire de redémarrer Elysium.</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/multiplayer/message.cpp" line="34"/>
@@ -6041,8 +6041,8 @@ Faites glisser les points pour modifier la position ou double-cliquez sur les ce
     </message>
     <message>
         <location filename="../../src/yuzu/multiplayer/message.cpp" line="37"/>
-        <source>Version mismatch! Please update to the latest version of Eden. If the problem persists, contact the room host and ask them to update the server.</source>
-        <translation>Mise à jour requise ! Veuillez mettre à jour vers la dernière version d&apos;Eden. Si le problème persiste, contactez l&apos;hôte du salon et demandez-lui de mettre à jour le serveur.</translation>
+        <source>Version mismatch! Please update to the latest version of Elysium. If the problem persists, contact the room host and ask them to update the server.</source>
+        <translation>Mise à jour requise ! Veuillez mettre à jour vers la dernière version d&apos;Elysium. Si le problème persiste, contactez l&apos;hôte du salon et demandez-lui de mettre à jour le serveur.</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/multiplayer/message.cpp" line="39"/>
@@ -6109,8 +6109,8 @@ Veuillez aller dans Configurer -&gt; Système -&gt; Réseau puis en choisir une.
     </message>
     <message>
         <location filename="../../src/yuzu/bootmanager.cpp" line="863"/>
-        <source>Eden has not been compiled with OpenGL support.</source>
-        <translation>Eden n&apos;a pas été compilé avec le support OpenGL</translation>
+        <source>Elysium has not been compiled with OpenGL support.</source>
+        <translation>Elysium n&apos;a pas été compilé avec le support OpenGL</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/bootmanager.cpp" line="887"/>
@@ -6513,9 +6513,9 @@ Veuillez aller dans Configurer -&gt; Système -&gt; Réseau puis en choisir une.
     </message>
     <message>
         <location filename="../../src/yuzu/multiplayer/host_room.cpp" line="187"/>
-        <source>Failed to announce the room to the public lobby. In order to host a room publicly, you must have a valid Eden account configured in Emulation -&gt; Configure -&gt; Web. If you do not want to publish a room in the public lobby, then select Unlisted instead.
+        <source>Failed to announce the room to the public lobby. In order to host a room publicly, you must have a valid Elysium account configured in Emulation -&gt; Configure -&gt; Web. If you do not want to publish a room in the public lobby, then select Unlisted instead.
 Debug Message: </source>
-        <translation>Échec de l&apos;annonce du salon dans le hall public. Pour héberger un salon publiquement, vous devez configurer un compte Eden valide dans Émulation -&gt; Configuration -&gt; Web. Si vous ne souhaitez pas publier le salon dans le hall public, sélectionnez &quot;Non répertorié&quot; à la place.
+        <translation>Échec de l&apos;annonce du salon dans le hall public. Pour héberger un salon publiquement, vous devez configurer un compte Elysium valide dans Émulation -&gt; Configuration -&gt; Web. Si vous ne souhaitez pas publier le salon dans le hall public, sélectionnez &quot;Non répertorié&quot; à la place.
 Message de débogage :</translation>
     </message>
 </context>
@@ -6615,8 +6615,8 @@ Message de débogage :</translation>
     </message>
     <message>
         <location filename="../../src/qt_common/config/uisettings.cpp" line="45"/>
-        <source>Exit Eden</source>
-        <translation>Fermer Eden</translation>
+        <source>Exit Elysium</source>
+        <translation>Fermer Elysium</translation>
     </message>
     <message>
         <location filename="../../src/qt_common/config/uisettings.cpp" line="46"/>
@@ -6898,8 +6898,8 @@ Message de débogage :</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/main.ui" line="62"/>
-        <source>Open &amp;Eden Folders</source>
-        <translation>Ouvrir &amp;les dossiers Eden</translation>
+        <source>Open &amp;Elysium Folders</source>
+        <translation>Ouvrir &amp;les dossiers Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/main.ui" line="85"/>
@@ -7039,8 +7039,8 @@ Message de débogage :</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/main.ui" line="295"/>
-        <source>&amp;About Eden</source>
-        <translation>&amp;À propos d&apos;Eden</translation>
+        <source>&amp;About Elysium</source>
+        <translation>&amp;À propos d&apos;Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/main.ui" line="303"/>
@@ -7251,8 +7251,8 @@ Message de débogage :</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/main.ui" line="558"/>
-        <source>&amp;Eden Dependencies</source>
-        <translation>Dépendances d&apos;&amp;Eden</translation>
+        <source>&amp;Elysium Dependencies</source>
+        <translation>Dépendances d&apos;&amp;Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/main.ui" line="563"/>
@@ -7416,7 +7416,7 @@ Message de débogage :</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/main_window.cpp" line="1822"/>
-        <source>You are using the deconstructed ROM directory format for this game, which is an outdated format that has been superseded by others such as NCA, NAX, XCI, or NSP. Deconstructed ROM directories lack icons, metadata, and update support.&lt;br&gt;For an explanation of the various Switch formats Eden supports, out our user handbook. This message will not be shown again.</source>
+        <source>You are using the deconstructed ROM directory format for this game, which is an outdated format that has been superseded by others such as NCA, NAX, XCI, or NSP. Deconstructed ROM directories lack icons, metadata, and update support.&lt;br&gt;For an explanation of the various Switch formats Elysium supports, out our user handbook. This message will not be shown again.</source>
         <translation type="unfinished"/>
     </message>
     <message>
@@ -8061,7 +8061,7 @@ Would you like to force it for future launches?</source>
     </message>
     <message>
         <location filename="../../src/yuzu/main_window.cpp" line="4400"/>
-        <source>Restart Eden to apply the X11 backend.</source>
+        <source>Restart Elysium to apply the X11 backend.</source>
         <translation type="unfinished"/>
     </message>
     <message>
@@ -8091,15 +8091,15 @@ Would you like to force it for future launches?</source>
     </message>
     <message>
         <location filename="../../src/yuzu/main_window.cpp" line="4519"/>
-        <source>Are you sure you want to close Eden?</source>
+        <source>Are you sure you want to close Elysium?</source>
         <translation type="unfinished"/>
     </message>
     <message>
         <location filename="../../src/yuzu/main_window.cpp" line="4520"/>
         <location filename="../../src/yuzu/main_window.cpp" line="4608"/>
         <location filename="../../src/yuzu/main_window.cpp" line="4620"/>
-        <source>Eden</source>
-        <translation>Eden</translation>
+        <source>Elysium</source>
+        <translation>Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/main_window.cpp" line="4609"/>
@@ -8108,7 +8108,7 @@ Would you like to force it for future launches?</source>
     </message>
     <message>
         <location filename="../../src/yuzu/main_window.cpp" line="4617"/>
-        <source>The currently running application has requested Eden to not exit.
+        <source>The currently running application has requested Elysium to not exit.
 
 Would you like to bypass this and exit anyway?</source>
         <translation type="unfinished"/>
@@ -8449,7 +8449,7 @@ Continuer quand même ?</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/configuration/system/new_user_dialog.ui" line="60"/>
-        <source>Eden</source>
+        <source>Elysium</source>
         <translation type="unfinished"/>
     </message>
     <message>
@@ -9410,8 +9410,8 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location filename="../../src/qt_common/util/content.cpp" line="328"/>
-        <source>UNEXPECTED BAD THINGS MAY HAPPEN IF YOU DON&apos;T READ THIS!&lt;br&gt;Eden has detected the following save directories with no attached profile:&lt;br&gt;%1&lt;br&gt;&lt;br&gt;The following profiles are valid:&lt;br&gt;%2&lt;br&gt;&lt;br&gt;Click &quot;OK&quot; to open your save folder and fix up your profiles.&lt;br&gt;Hint: copy the contents of the largest or last-modified folder elsewhere, delete all orphaned profiles, and move your copied contents to the good profile.&lt;br&gt;&lt;br&gt;Still confused? See the &lt;a href=&apos;https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/Orphaned.md&apos;&gt;help page&lt;/a&gt;.&lt;br&gt;</source>
-        <translation>DES CHOSES GRAVES INATTENDUES PEUVENT SURVENIR SI VOUS NE LISEZ PAS CECI !&lt;br&gt;Eden a détecté les répertoires de sauvegarde suivants sans profil associé :&lt;br&gt;%1&lt;br&gt;&lt;br&gt;Les profils suivants sont valides :&lt;br&gt;%2&lt;br&gt;&lt;br&gt;Cliquez sur « OK » pour ouvrir votre dossier de sauvegarde et corriger vos profils.&lt;br&gt;Astuce : copiez le contenu du dossier le plus volumineux ou le plus récemment modifié ailleurs, supprimez tous les profils orphelins et déplacez le contenu copié vers le profil correct.&lt;br&gt;&lt;br&gt;Toujours confus ? Consultez la &lt;a href=&apos;https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/Orphaned.md&apos;&gt;page d’aide&lt;/a&gt;.&lt;br&gt;</translation>
+        <source>UNEXPECTED BAD THINGS MAY HAPPEN IF YOU DON&apos;T READ THIS!&lt;br&gt;Elysium has detected the following save directories with no attached profile:&lt;br&gt;%1&lt;br&gt;&lt;br&gt;The following profiles are valid:&lt;br&gt;%2&lt;br&gt;&lt;br&gt;Click &quot;OK&quot; to open your save folder and fix up your profiles.&lt;br&gt;Hint: copy the contents of the largest or last-modified folder elsewhere, delete all orphaned profiles, and move your copied contents to the good profile.&lt;br&gt;&lt;br&gt;Still confused? See the &lt;a href=&apos;https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/Orphaned.md&apos;&gt;help page&lt;/a&gt;.&lt;br&gt;</source>
+        <translation>DES CHOSES GRAVES INATTENDUES PEUVENT SURVENIR SI VOUS NE LISEZ PAS CECI !&lt;br&gt;Elysium a détecté les répertoires de sauvegarde suivants sans profil associé :&lt;br&gt;%1&lt;br&gt;&lt;br&gt;Les profils suivants sont valides :&lt;br&gt;%2&lt;br&gt;&lt;br&gt;Cliquez sur « OK » pour ouvrir votre dossier de sauvegarde et corriger vos profils.&lt;br&gt;Astuce : copiez le contenu du dossier le plus volumineux ou le plus récemment modifié ailleurs, supprimez tous les profils orphelins et déplacez le contenu copié vers le profil correct.&lt;br&gt;&lt;br&gt;Toujours confus ? Consultez la &lt;a href=&apos;https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/Orphaned.md&apos;&gt;page d’aide&lt;/a&gt;.&lt;br&gt;</translation>
     </message>
     <message>
         <location filename="../../src/qt_common/util/content.cpp" line="347"/>
@@ -9559,7 +9559,7 @@ Ne faites cela que si vous êtes sûr à 100 % de vouloir supprimer ces donné
     </message>
     <message>
         <location filename="../../src/qt_common/util/content.cpp" line="501"/>
-        <source>Install decryption keys and restart Eden before attempting to install firmware.</source>
+        <source>Install decryption keys and restart Elysium before attempting to install firmware.</source>
         <translation type="unfinished"/>
     </message>
     <message>
@@ -10043,8 +10043,8 @@ Most mods are RomFS mods, but patches (.pchtxt) are typically ExeFS mods.</sourc
     </message>
     <message>
         <location filename="../../src/qt_common/qt_string_lookup.h" line="96"/>
-        <source>Firmware installation cancelled, firmware may be in a bad state or corrupted. Restart Eglantine or re-install firmware.</source>
-        <translation>Installation du Firmware annulée, le firmware peut être corrompu ou dans un état incorrect. Redémarrez Eden ou réinstallez le Firmware.</translation>
+        <source>Firmware installation cancelled, firmware may be in a bad state or corrupted. Restart Elysium or re-install firmware.</source>
+        <translation>Installation du Firmware annulée, le firmware peut être corrompu ou dans un état incorrect. Redémarrez Elysium ou réinstallez le Firmware.</translation>
     </message>
     <message>
         <location filename="../../src/qt_common/qt_string_lookup.h" line="101"/>
@@ -10058,12 +10058,12 @@ Most mods are RomFS mods, but patches (.pchtxt) are typically ExeFS mods.</sourc
     </message>
     <message>
         <location filename="../../src/qt_common/qt_string_lookup.h" line="110"/>
-        <source>Eglantine has detected user data for the following emulators:</source>
-        <translation>Eden a détecté des données utilisateur pour les émulateurs suivants :</translation>
+        <source>Elysium has detected user data for the following emulators:</source>
+        <translation>Elysium a détecté des données utilisateur pour les émulateurs suivants :</translation>
     </message>
     <message>
         <location filename="../../src/qt_common/qt_string_lookup.h" line="112"/>
-        <source>Would you like to migrate your data for use in Eglantine?
+        <source>Would you like to migrate your data for use in Elysium?
 Select the corresponding button to migrate data from that emulator.
 This may take a while.</source>
         <translation>Voulez‑vous migrer vos données pour les utiliser dans Eden ?
@@ -10092,9 +10092,9 @@ Ceci est recommandé sur les appareils disposant de peu d’espace.</translation
     </message>
     <message>
         <location filename="../../src/qt_common/qt_string_lookup.h" line="124"/>
-        <source>Creates a filesystem link between the old directory and Eglantine directory.
+        <source>Creates a filesystem link between the old directory and Elysium directory.
 This is recommended if you want to share data between emulators.</source>
-        <translation>Crée un lien de système de fichiers entre l’ancien répertoire et le répertoire Eden.
+        <translation>Crée un lien de système de fichiers entre l’ancien répertoire et le répertoire Elysium.
 Ceci est recommandé si vous souhaitez partager les données entre les émulateurs.</translation>
     </message>
     <message>
@@ -10553,17 +10553,17 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location filename="../../src/yuzu/ryujinx_dialog.ui" line="26"/>
-        <source>Linking save data to Ryujinx lets both Ryujinx and Eden reference the same save files for your games.
+        <source>Linking save data to Ryujinx lets both Ryujinx and Elysium reference the same save files for your games.
 
-By selecting &quot;From Eden&quot;, previous save data stored in Ryujinx will be deleted, and vice versa for &quot;From Ryujinx&quot;.</source>
-        <translation>Lier les données de sauvegarde à Ryujinx permet à la fois à Ryujinx et à Eden de référencer les mêmes fichiers de sauvegarde pour vos jeux.
+By selecting &quot;From Elysium&quot;, previous save data stored in Ryujinx will be deleted, and vice versa for &quot;From Ryujinx&quot;.</source>
+        <translation>Lier les données de sauvegarde à Ryujinx permet à la fois à Ryujinx et à Elysium de référencer les mêmes fichiers de sauvegarde pour vos jeux.
 
-En sélectionnant « Depuis Eden », les données de sauvegarde précédemment stockées dans Ryujinx seront supprimées, et inversement pour « Depuis Ryujinx ».</translation>
+En sélectionnant « Depuis Elysium », les données de sauvegarde précédemment stockées dans Ryujinx seront supprimées, et inversement pour « Depuis Ryujinx ».</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/ryujinx_dialog.ui" line="40"/>
-        <source>From Eden</source>
-        <translation>Depuis Eden</translation>
+        <source>From Elysium</source>
+        <translation>Depuis Elysium</translation>
     </message>
     <message>
         <location filename="../../src/yuzu/ryujinx_dialog.ui" line="47"/>

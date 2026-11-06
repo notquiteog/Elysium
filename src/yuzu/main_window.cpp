@@ -9,6 +9,7 @@
 #endif
 
 #include <boost/algorithm/string/split.hpp>
+#include "common/fs/fs_paths.h"
 #include "common/fs/path_util.h"
 #include "common/game_presets.h"
 #include "common/settings.h"
@@ -393,7 +394,7 @@ MainWindow::MainWindow(bool has_broken_vulkan)
             std::string str_path = Common::FS::GetEdenPathString(path);
             if (str_path.starts_with(user_data_migrator.selected_emu.get_user_dir())) {
                 boost::replace_all(
-                    str_path, user_data_migrator.selected_emu.lower_name().toStdString(), "eden");
+                    str_path, user_data_migrator.selected_emu.lower_name().toStdString(), EDEN_DIR);
                 Common::FS::SetEdenPath(path, str_path);
             }
         }
@@ -1301,7 +1302,7 @@ void MainWindow::InitializeHotkeys() {
     hotkey_registry.LoadHotkeys();
 
     LinkActionShortcut(ui->action_Load_File, QStringLiteral("Load File"));
-    LinkActionShortcut(ui->action_Exit, QStringLiteral("Exit Eglantine"));
+    LinkActionShortcut(ui->action_Exit, QStringLiteral("Exit Elysium"));
     LinkActionShortcut(ui->action_Restart, QStringLiteral("Restart Emulation"));
     LinkActionShortcut(ui->action_Pause, QStringLiteral("Continue/Pause Emulation"));
     LinkActionShortcut(ui->action_Stop, QStringLiteral("Stop Emulation"));
@@ -1859,7 +1860,7 @@ bool MainWindow::LoadROM(const QString& filename, Service::AM::FrontendAppletPar
                 this, tr("An error occurred initializing the video core."),
                 tr("This is usually caused by outdated GPU drivers. "
                    "Please see the log for more details. See: "
-                   "<a href='https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/HowToAccessLogs.md'>"
+                   "<a href='https://github.com/notquiteog/Elysium/blob/main/docs/user/HowToAccessLogs.md'>"
                    "How to access log files</a>."));
             break;
         default:
@@ -3418,7 +3419,7 @@ void MainWindow::OnOpenModsPage() {
 }
 
 void MainWindow::OnOpenUserHandbook() {
-    OpenURL(QUrl(QStringLiteral("https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/README.md")));
+    OpenURL(QUrl(QStringLiteral("https://github.com/notquiteog/Elysium/blob/main/docs/user/README.md")));
 }
 
 void MainWindow::ToggleFullscreen() {

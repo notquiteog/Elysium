@@ -421,10 +421,10 @@ jobs:
         run: |
           set -euo pipefail
           test -x build/release/bin/elysium
-          test -x build/release/bin/eden-cli
-          strip build/release/bin/elysium build/release/bin/eden-cli
+          test -x build/release/bin/elysium-cli
+          strip build/release/bin/elysium build/release/bin/elysium-cli
           tar -czf "elysium-${GITHUB_SHA}-${{ matrix.platform }}.tar.gz" \
-            -C build/release/bin elysium eden-cli
+            -C build/release/bin elysium elysium-cli
           ls -la "elysium-${GITHUB_SHA}-${{ matrix.platform }}.tar.gz"
 
       # A self-contained AppImage: linuxdeploy bundles every library the two programs need except
@@ -436,7 +436,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x build/release/bin/elysium
-          test -x build/release/bin/eden-cli
+          test -x build/release/bin/elysium-cli
           tools="$RUNNER_TEMP/linuxdeploy"
           mkdir -p "$tools"
           arch=$(uname -m)   # aarch64 or x86_64
@@ -460,7 +460,7 @@ jobs:
           export ARCH="$arch"
           "$tools/linuxdeploy-$arch.AppImage" --appdir AppDir \
             --executable build/release/bin/elysium \
-            --executable build/release/bin/eden-cli \
+            --executable build/release/bin/elysium-cli \
             --desktop-file dist/io.github.notquiteog.elysium.desktop \
             --icon-file "$icon" \
             --plugin qt \
@@ -472,7 +472,7 @@ jobs:
         if: matrix.platform == 'windows-x86_64'
         shell: pwsh
         run: |
-          foreach ($exe in 'elysium.exe', 'eden-cli.exe') {
+          foreach ($exe in 'elysium.exe', 'elysium-cli.exe') {
             if (-not (Test-Path "build/release/bin/$exe")) {
               throw "build/release/bin/$exe was not produced"
             }
@@ -490,7 +490,7 @@ jobs:
           export PATH="/ucrt64/bin:$PATH"
           cd build/release/bin
           test -f elysium.exe
-          test -f eden-cli.exe
+          test -f elysium-cli.exe
           windeployqt6 --no-translations --no-compiler-runtime --no-opengl-sw \
             --no-system-dxc-compiler --no-system-d3d-compiler elysium.exe
           deps() {
@@ -508,7 +508,7 @@ jobs:
               fi
             done
           }
-          for exe in elysium.exe eden-cli.exe; do
+          for exe in elysium.exe elysium-cli.exe; do
             deps "$exe"
           done
           find . -name '*.dll' | while read -r dll; do
@@ -525,10 +525,10 @@ jobs:
           set -euo pipefail
           app=build/release/bin/elysium.app
           test -x "$app/Contents/MacOS/elysium"
-          test -x build/release/bin/eden-cli
-          cp build/release/bin/eden-cli "$app/Contents/MacOS/eden-cli"
+          test -x build/release/bin/elysium-cli
+          cp build/release/bin/elysium-cli "$app/Contents/MacOS/elysium-cli"
           "$(brew --prefix qt@6)/bin/macdeployqt" "$app" \
-            -executable="$app/Contents/MacOS/eden-cli" -libpath="$(brew --prefix)/lib" \
+            -executable="$app/Contents/MacOS/elysium-cli" -libpath="$(brew --prefix)/lib" \
             -always-overwrite -verbose=1
           # Qt's virtual keyboard input plugin pulls in the QML stack, which the emulator doesn't use.
           rm -f "$app/Contents/PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib"
@@ -541,7 +541,7 @@ jobs:
               done
           done
           # Libraries that load their dependencies through @rpath find them in the bundle.
-          for program in elysium eden-cli; do
+          for program in elysium elysium-cli; do
             install_name_tool -add_rpath @executable_path/../Frameworks \
               "$app/Contents/MacOS/$program" 2> /dev/null
           done
@@ -560,7 +560,7 @@ jobs:
           codesign --force --deep --sign - "$app"
           if [ -f dist/eglantine.entitlements ]; then
             codesign --force --sign - --entitlements dist/eglantine.entitlements \
-              "$app/Contents/MacOS/eden-cli"
+              "$app/Contents/MacOS/elysium-cli"
             codesign --force --sign - --entitlements dist/eglantine.entitlements "$app"
           fi
           codesign --verify --deep --strict "$app"
@@ -690,7 +690,7 @@ jobs:
 
           ## Windows
 
-          Windows packages are in-place zip files: extract and run \`elysium.exe\`, or \`eden-cli.exe\` from a terminal.
+          Windows packages are in-place zip files: extract and run \`elysium.exe\`, or \`elysium-cli.exe\` from a terminal.
 
           | Build Type | Standard | PGO (Recommended) | Notes |
           | --- | --- | --- | --- |
@@ -701,7 +701,7 @@ jobs:
 
           | Build Type | Standard | PGO (Recommended) | Notes |
           | --- | --- | --- | --- |
-          | arm64 (Apple Silicon) | [zip](${base}/elysium-macos-arm64.zip) | | macOS 15 or newer. Not notarized: right-click and choose Open the first time, or run \`xattr -dr com.apple.quarantine elysium.app\`. \`eden-cli\` is inside the app, in \`Contents/MacOS\` |
+          | arm64 (Apple Silicon) | [zip](${base}/elysium-macos-arm64.zip) | | macOS 15 or newer. Not notarized: right-click and choose Open the first time, or run \`xattr -dr com.apple.quarantine elysium.app\`. \`elysium-cli\` is inside the app, in \`Contents/MacOS\` |
 
           The PGO builds are the same programs compiled with profile-guided optimization (clang plus Eglantine's profile); prefer them when your CPU supports it.
           EOF
