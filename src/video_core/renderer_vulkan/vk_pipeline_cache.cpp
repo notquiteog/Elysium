@@ -383,6 +383,7 @@ struct DeferredStages {
     std::array<Shader::IR::Program, Maxwell::MaxShaderProgram> programs;
     std::array<std::optional<Shader::RuntimeInfo>, Maxwell::MaxShaderStage> runtime_infos;
     std::array<std::vector<u32>, Maxwell::MaxShaderStage> reference_spirv;
+    std::array<bool, Maxwell::MaxShaderStage> plain_geometry{};
 };
 
 size_t GetTotalPipelineWorkers() {
@@ -1188,6 +1189,23 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     // Layer passthrough generation for devices without VK_EXT_shader_viewport_index_layer
     Shader::IR::Program* layer_source_program{};
 
+    // A geometry program drawing with the layer relative to the viewport (Maxwell 0x11F0) is
+    // lowered on every host: Vulkan's NV extensions don't offset the layer by the viewport, the
+    // lowered passthrough does.
+    const auto is_relative_layer_geometry = [&key](size_t index) {
+        return key.state.layer_viewport_relative != 0 &&
+               index == static_cast<size_t>(Maxwell::ShaderType::Geometry);
+    };
+    const auto stage_host_info = [&](size_t index) {
+        Shader::HostTranslateInfo info{host_info};
+        if (is_relative_layer_geometry(index)) {
+            info.support_viewport_mask = false;
+            info.support_geometry_shader_passthrough = false;
+            info.layer_viewport_relative = true;
+        }
+        return info;
+    };
+
     for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
                                        index == static_cast<u32>(Maxwell::ShaderType::Geometry);
@@ -1226,7 +1244,8 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
         if (!uses_vertex_a || index != 1) {
             // Normal path
-            programs[index] = TranslateProgram(pools.inst, pools.block, env, cfg, host_info);
+            programs[index] =
+                TranslateProgram(pools.inst, pools.block, env, cfg, stage_host_info(index));
         } else {
             // VertexB path when VertexA is present.
             auto& program_va{programs[0]};
@@ -1295,6 +1314,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     std::array<vk::ShaderModule, Maxwell::MaxShaderStage> modules;
     std::array<std::optional<Shader::RuntimeInfo>, Maxwell::MaxShaderStage> deferred_runtime_infos;
     std::array<std::vector<u32>, Maxwell::MaxShaderStage> reference_spirv;
+    std::array<bool, Maxwell::MaxShaderStage> deferred_plain_geometry{};
 
     const Shader::IR::Program* previous_stage{};
     Shader::Backend::Bindings binding;
@@ -1313,15 +1333,25 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
         const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage, device)};
         ConvertLegacyToGeneric(program, runtime_info);
+        Shader::Profile stage_profile{profile};
+        const bool plain_geometry =
+            is_relative_layer_geometry(index) && key.unique_hashes[index] != 0;
+        if (plain_geometry) {
+            // Translated as on hosts without the NV extensions (stage_host_info), emitted the same.
+            stage_profile.support_viewport_mask = false;
+            stage_profile.support_geometry_shader_passthrough = false;
+        }
         if (emit_pools) {
             deferred_runtime_infos[stage_index] = runtime_info;
+            deferred_plain_geometry[stage_index] = plain_geometry;
             if (VideoCommon::Nx2Perf::Verify()) {
-                reference_spirv[stage_index] = EmitSPIRV(profile, runtime_info, program, binding);
+                reference_spirv[stage_index] =
+                    EmitSPIRV(stage_profile, runtime_info, program, binding);
             }
         } else {
             const auto begin = std::chrono::steady_clock::now();
-            modules[stage_index] = EmitShaderModule(device, profile, runtime_info, program, binding,
-                                                   key.unique_hashes[index], stage_index);
+            modules[stage_index] = EmitShaderModule(device, stage_profile, runtime_info, program,
+                                                   binding, key.unique_hashes[index], stage_index);
             if (build_in_parallel) {
                 AddRuntimeSpirvTime(0, begin);
             }
@@ -1336,6 +1366,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         job->programs = std::move(programs);
         job->runtime_infos = std::move(deferred_runtime_infos);
         job->reference_spirv = std::move(reference_spirv);
+        job->plain_geometry = deferred_plain_geometry;
         for (size_t stage = 0; stage < infos.size(); ++stage) {
             if (infos[stage]) {
                 infos[stage] = &job->programs[stage + 1].info;
@@ -1347,8 +1378,13 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             Shader::Backend::Bindings stage_binding;
             for (size_t stage = 0; stage < stage_modules.size(); ++stage) {
                 if (job->runtime_infos[stage]) {
+                    Shader::Profile stage_profile{profile};
+                    if (job->plain_geometry[stage]) {
+                        stage_profile.support_viewport_mask = false;
+                        stage_profile.support_geometry_shader_passthrough = false;
+                    }
                     stage_modules[stage] =
-                        EmitShaderModule(device, profile, *job->runtime_infos[stage],
+                        EmitShaderModule(device, stage_profile, *job->runtime_infos[stage],
                                          job->programs[stage + 1], stage_binding,
                                          hashes[stage + 1], stage, job->reference_spirv[stage]);
                 }

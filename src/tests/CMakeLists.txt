@@ -152,6 +152,7 @@ add_executable(tests
     video_core/shader_attributes.cpp
     video_core/indirect_reset.cpp
     video_core/usage_tracker.cpp
+    video_core/geometry_layer_viewport_relative.cpp
     input_common/calibration_configuration_job.cpp
 )
 

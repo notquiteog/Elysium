@@ -41,6 +41,8 @@ struct HostTranslateInfo {
                                         ///< control flow
     bool single_lane_geometry_subgroups{};
     bool support_byte_addressed_r16{};
+    /// The render target layer is offset by the viewport index (Maxwell 0x11F0); per pipeline.
+    bool layer_viewport_relative{};
 
     void ApplyDescriptorLimitPolicy() noexcept {
         if (min_ssbo_alignment == 0) {
