@@ -129,6 +129,9 @@ public:
             guard.unlock();
             cv.notify_all();
         }
+        if (delay_fence) {
+            SubmitDeferredWork();
+        }
         rasterizer.InvalidateGPUCache();
     }
 
@@ -161,6 +164,7 @@ public:
                 wait_cv.notify_all();
             });
             SignalFence(std::move(func));
+            SubmitDeferredWork();
             std::unique_lock lk(wait_mutex);
             wait_cv.wait(
                 lk, [&wait_finished] { return wait_finished.load(std::memory_order_relaxed); });
@@ -196,6 +200,7 @@ protected:
     virtual bool IsFenceSignaled(TFence& fence) const = 0;
     /// Waits until a fence has been signalled by the host GPU.
     virtual void WaitFence(TFence& fence) = 0;
+    virtual void SubmitDeferredWork() {}
 
     VideoCore::RasterizerInterface& rasterizer;
     Tegra::GPU& gpu;

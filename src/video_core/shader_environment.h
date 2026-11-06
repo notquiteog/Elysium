@@ -220,6 +220,8 @@ public:
 
     void Deserialize(std::ifstream& file, u64 max_bytes);
 
+    [[nodiscard]] size_t MemorySize() const;
+
     [[nodiscard]] u64 ReadInstruction(u32 address) override;
 
     [[nodiscard]] u32 TranslateProgramAddress(u32 address) const override;

@@ -15,16 +15,16 @@
 
 namespace VideoCommon {
 
-inline constexpr u32 OpenGLPipelineCacheVersion = 52;
-inline constexpr u32 VulkanPipelineCacheVersion = 56;
+inline constexpr u32 OpenGLPipelineCacheVersion = 53;
+inline constexpr u32 VulkanPipelineCacheVersion = 57;
 
 // The oldest cache versions whose stored layout (pipeline keys and shader environments) matches
 // this build's. Every cached pipeline is translated again from its stored guest programs at boot,
 // so a translation change only bumps the cache version above, and a file from a version in
 // [compatible, current) is carried over instead of discarded. Raise these to the new version
 // whenever the serialized environment or a pipeline key changes layout.
-inline constexpr u32 OpenGLPipelineCacheCompatibleVersion = 48;
-inline constexpr u32 VulkanPipelineCacheCompatibleVersion = 52;
+inline constexpr u32 OpenGLPipelineCacheCompatibleVersion = 53;
+inline constexpr u32 VulkanPipelineCacheCompatibleVersion = 57;
 
 // Official Eglantine (cache version 18 at c0cb3325) and this fork (a different version) both
 // used <shader dir>/<title>/vulkan.bin and vulkan_pipelines.bin. Each build deletes a file
@@ -138,6 +138,42 @@ inline void UpgradePipelineCacheFile(const std::filesystem::path& directory,
     for (const auto& path : stale) {
         std::filesystem::remove(path, error);
     }
+}
+
+/// Copies `source` to a not-yet-existing `destination`, rewriting the version after its magic
+/// number. Used to seed a new cache version from a compatible older file.
+inline bool CopyCompatiblePipelineCache(const std::filesystem::path& source,
+                                        const std::filesystem::path& destination,
+                                        const std::array<char, 8>& magic, u32 source_version,
+                                        u32 destination_version) {
+    std::error_code error;
+    if (std::filesystem::exists(destination, error) || error ||
+        !PipelineCacheHeaderMatches(source, magic, source_version)) {
+        return false;
+    }
+    auto temporary = destination;
+    temporary += ".migrating";
+    if (!std::filesystem::copy_file(source, temporary,
+                                    std::filesystem::copy_options::overwrite_existing, error)) {
+        return false;
+    }
+    {
+        std::fstream stream(temporary, std::ios::binary | std::ios::in | std::ios::out);
+        stream.seekp(static_cast<std::streamoff>(magic.size()));
+        stream.write(reinterpret_cast<const char*>(&destination_version),
+                     sizeof(destination_version));
+        stream.close();
+        if (stream.fail()) {
+            std::filesystem::remove(temporary, error);
+            return false;
+        }
+    }
+    std::filesystem::rename(temporary, destination, error);
+    if (error) {
+        std::filesystem::remove(temporary, error);
+        return false;
+    }
+    return true;
 }
 
 } // namespace VideoCommon
