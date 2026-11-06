@@ -43,7 +43,7 @@ Copy these DLLs from an NVIDIA Streamline package into `%APPDATA%\eglantine\stre
 - Always: `sl.interposer.dll`, `sl.common.dll`
 - DLSS: `sl.dlss.dll`, `nvngx_dlss.dll`
 - DLSS 5: `sl.dlss_nr.dll`, `nvngx_dlssnr.dll` (Streamline 2.13 or newer with DLSS 310.8 or newer)
-- Frame Generation: `sl.dlss_g.dll`, `nvngx_dlssg.dll`, `sl.reflex.dll`, `sl.pcl.dll`
+- Frame Generation: `sl.dlss_g.dll`, `nvngx_dlssg.dll`, `sl.reflex.dll`, `sl.pcl.dll`, `NvLowLatencyVk.dll` (the Reflex SDK's Vulkan library, in the Streamline SDK under `external/reflex-sdk-vk/lib`)
 
 All `sl.*.dll` files must come from the same Streamline release. The download button in **Graphics** settings fetches the public Streamline release, but that release does not include DLSS 5.
 

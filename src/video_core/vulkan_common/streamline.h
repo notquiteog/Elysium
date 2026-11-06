@@ -69,6 +69,10 @@ bool AttachDevice(VkInstance instance, VkPhysicalDevice physical, VkDevice devic
 /// Whether DLSS frame generation (DLSS-G, with Reflex and PCL) can run on the attached device.
 [[nodiscard]] bool IsFrameGenAvailable();
 
+/// sl.interposer.dll's vkCreateWin32SurfaceKHR once a device is attached, or null. DLSS frame
+/// generation finds the window of a surface created through it.
+[[nodiscard]] PFN_vkVoidFunction InterposerCreateWin32Surface();
+
 /// Shuts Streamline down; call before the device is destroyed.
 void Stop();
 

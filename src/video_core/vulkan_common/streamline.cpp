@@ -383,7 +383,8 @@ bool Start() {
     preferences.numPathsToPlugins = state.model_dir.empty() ? 1 : 2;
     preferences.flags = sl::PreferenceFlags::eDisableCLStateTracking |
                         sl::PreferenceFlags::eUseManualHooking | sl::PreferenceFlags::eAllowOTA |
-                        sl::PreferenceFlags::eLoadDownloadedPlugins;
+                        sl::PreferenceFlags::eLoadDownloadedPlugins |
+                        sl::PreferenceFlags::eUseFrameBasedResourceTagging;
     preferences.featuresToLoad = features.data();
     preferences.numFeaturesToLoad = static_cast<uint32_t>(features.size());
     preferences.engine = sl::EngineType::eCustom;
@@ -567,6 +568,15 @@ bool IsNeuralRenderingAvailable() {
 bool IsFrameGenAvailable() {
     const State& state = GetState();
     return state.started && state.attached && state.frame_gen;
+}
+
+PFN_vkVoidFunction InterposerCreateWin32Surface() {
+    const State& state = GetState();
+    if (!state.started || !state.attached) {
+        return nullptr;
+    }
+    return reinterpret_cast<PFN_vkVoidFunction>(
+        GetProcAddress(state.module, "vkCreateWin32SurfaceKHR"));
 }
 
 void Stop() {

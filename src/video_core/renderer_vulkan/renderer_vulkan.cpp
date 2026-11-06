@@ -150,6 +150,20 @@ Device CreateDevice(const vk::Instance& instance, const vk::InstanceDispatch& dl
     return Device(*instance, physical_device, surface, dld);
 }
 
+/// The surface to create the swapchain on. DLSS frame generation looks the window up by surface,
+/// but Streamline can only register one after the device is attached, so recreate it then.
+VkSurfaceKHR SwapchainSurface([[maybe_unused]] const vk::Instance& instance,
+                              [[maybe_unused]] const Core::Frontend::EmuWindow& window,
+                              vk::SurfaceKHR& surface) {
+#ifdef EGLANTINE_STREAMLINE
+    if (Streamline::IsFrameGenAvailable()) {
+        surface = vk::SurfaceKHR{};
+        surface = CreateSurface(instance, window.GetWindowInfo());
+    }
+#endif
+    return *surface;
+}
+
 RendererVulkan::RendererVulkan(Core::Frontend::EmuWindow& emu_window,
                                Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                Tegra::GPU& gpu_,
@@ -178,7 +192,7 @@ try
     , memory_allocator(device)
     , state_tracker()
     , scheduler(device, state_tracker)
-    , swapchain(*surface,
+    , swapchain(SwapchainSurface(instance, render_window, surface),
                 device,
                 scheduler,
                render_window.GetFramebufferLayout().width,
