@@ -261,7 +261,7 @@ TEST_CASE("Full upload keeps mip layer offsets and compressed edge blocks", "[un
             const auto original = UnswizzleImage(
                 memory, 0, info, input, std::span{expected}.subspan(32, expected.size() - 64));
             const auto parallel = UnswizzleImage(
-                memory, 0, info, input, std::span{actual}.subspan(32, actual.size() - 64), &worker);
+                memory, 0, info, input, std::span{actual}.subspan(32, actual.size() - 64), 0, &worker);
             REQUIRE(actual == expected);
             REQUIRE(parallel.size() == original.size());
             for (size_t i = 0; i < original.size(); ++i) {
@@ -321,7 +321,7 @@ TEST_CASE("Full upload does not wait behind a saturated shared pool", "[unswizzl
     std::promise<void> started;
     auto result = std::async(std::launch::async, [&] {
         started.set_value();
-        return UnswizzleImage(memory, 0, info, input, actual, &worker);
+        return UnswizzleImage(memory, 0, info, input, actual, 0, &worker);
     });
     auto unblock = SCOPE_GUARD {
         release.count_down();
@@ -377,7 +377,7 @@ TEST_CASE("Full upload end to end microbenchmark", "[.unswizzle_upload_benchmark
                 }
                 const auto begin = Clock::now();
                 [[maybe_unused]] const auto copies =
-                    UnswizzleImage(memory, 0, info, input, output, selected);
+                    UnswizzleImage(memory, 0, info, input, output, 0, selected);
                 const double us =
                     std::chrono::duration<double, std::micro>(Clock::now() - begin).count();
                 pool.WaitForRequests();

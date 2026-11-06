@@ -89,5 +89,6 @@ private:
     u32 last_forward_target{};
     bool main_exited{};
     bool computed_branch{};
+    bool has_calls{};
 };
 } // namespace Shader::Ampere
