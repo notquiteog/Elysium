@@ -256,6 +256,9 @@ add_library(video_core STATIC
     vulkan_common/vma.h
     vulkan_common/vulkan.h
 
+    pipeline_cache_bundle.cpp
+    pipeline_cache_bundle.h
+    pipeline_cache_files.h
     shader_cache.cpp
     shader_cache.h
     shader_environment.cpp

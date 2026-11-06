@@ -878,6 +878,13 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         LOG_ERROR(Common_Filesystem, "Failed to create pipeline cache directories");
         return;
     }
+    // The driver's own pipeline cache holds SPIR-V of the old translation: nothing to carry over.
+    VideoCommon::UpgradePipelineCacheFile(base_dir, "vulkan", CACHE_VERSION,
+                                          VideoCommon::VulkanPipelineCacheCompatibleVersion, true);
+    VideoCommon::UpgradePipelineCacheFile(base_dir, "vulkan_used", CACHE_VERSION,
+                                          VideoCommon::VulkanPipelineCacheCompatibleVersion, false);
+    VideoCommon::UpgradePipelineCacheFile(base_dir, "vulkan_pipelines", CACHE_VERSION,
+                                          CACHE_VERSION, false);
     pipeline_cache_filename =
         VideoCommon::VersionedPipelineCachePath(base_dir, "vulkan", CACHE_VERSION);
     used_pipelines_filename =

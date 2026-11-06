@@ -172,6 +172,7 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 
 // Video Core //
 #include "video_core/gpu.h"
+#include "video_core/pipeline_cache_bundle.h"
 #include "video_core/renderer_base.h"
 #include "video_core/shader_notify.h"
 
@@ -1460,6 +1461,10 @@ void MainWindow::ConnectWidgetEvents() {
     connect(game_list, &GameList::OpenFolderRequested, this, &MainWindow::OnGameListOpenFolder);
     connect(game_list, &GameList::OpenTransferableShaderCacheRequested, this,
             [this](u64 program_id) { QtCommon::Path::OpenShaderCache(program_id, this); });
+    connect(game_list, &GameList::ExportShaderCacheRequested, this,
+            &MainWindow::OnGameListExportShaderCache);
+    connect(game_list, &GameList::ImportShaderCacheRequested, this,
+            &MainWindow::OnGameListImportShaderCache);
     connect(game_list, &GameList::RemoveInstalledEntryRequested, this,
             &MainWindow::OnGameListRemoveInstalledEntry);
     connect(game_list, &GameList::RemoveFileRequested, this, &MainWindow::OnGameListRemoveFile);
@@ -2606,6 +2611,55 @@ void MainWindow::OnGameListRemoveInstalledEntry(u64 program_id,
     Common::FS::RemoveDirRecursively(Common::FS::GetEdenPath(Common::FS::EdenPath::CacheDir) /
                                      "game_list");
     game_list->PopulateAsync(UISettings::values.game_dirs);
+}
+
+void MainWindow::OnGameListExportShaderCache(u64 program_id) {
+    const QString extension = QString::fromUtf8(VideoCommon::PipelineCacheBundleExtension.data(),
+                                                VideoCommon::PipelineCacheBundleExtension.size());
+    const QString suggested =
+        QStringLiteral("%1%2").arg(QString::number(program_id, 16).rightJustified(16, u'0').toUpper(),
+                                   extension);
+    const QString file = QFileDialog::getSaveFileName(
+        this, tr("Export Pipeline Cache"), suggested,
+        tr("Pipeline cache bundle (*%1)").arg(extension));
+    if (file.isEmpty()) {
+        return;
+    }
+    const auto result = VideoCommon::ExportPipelineCacheBundle(
+        Common::FS::GetEdenPath(Common::FS::EdenPath::ShaderDir), program_id,
+        std::filesystem::path{file.toStdU16String()});
+    if (!result.ok) {
+        QMessageBox::warning(this, tr("Export Pipeline Cache"),
+                             QString::fromStdString(result.error));
+        return;
+    }
+    QMessageBox::information(
+        this, tr("Export Pipeline Cache"),
+        tr("Saved the pipeline cache. Import it on another PC from this game's context menu."));
+}
+
+void MainWindow::OnGameListImportShaderCache(u64 program_id) {
+    const QString extension = QString::fromUtf8(VideoCommon::PipelineCacheBundleExtension.data(),
+                                                VideoCommon::PipelineCacheBundleExtension.size());
+    const QString file = QFileDialog::getOpenFileName(
+        this, tr("Import Pipeline Cache"), QString{},
+        tr("Pipeline cache bundle (*%1)").arg(extension));
+    if (file.isEmpty()) {
+        return;
+    }
+    const auto result = VideoCommon::ImportPipelineCacheBundle(
+        Common::FS::GetEdenPath(Common::FS::EdenPath::ShaderDir),
+        std::filesystem::path{file.toStdU16String()}, program_id);
+    if (!result.ok) {
+        QMessageBox::warning(this, tr("Import Pipeline Cache"),
+                             QString::fromStdString(result.error));
+        return;
+    }
+    QMessageBox::information(
+        this, tr("Import Pipeline Cache"),
+        result.files != 0
+            ? tr("Imported the pipeline cache. It is built when the game next starts.")
+            : tr("Nothing was imported: this PC already has an equal or larger cache."));
 }
 
 void MainWindow::OnGameListRemoveFile(u64 program_id, QtCommon::Game::GameListRemoveTarget target,

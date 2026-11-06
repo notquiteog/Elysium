@@ -46,6 +46,7 @@ add_executable(tests
     video_core/native_texture_header_index.cpp
     video_core/texture_handles.cpp
     video_core/texture_descriptor_bounds.cpp
+    video_core/pipeline_cache_upgrade.cpp
     video_core/ampere_selevet_modes.cpp
     video_core/ampere_selevet_spills.cpp
     video_core/blit_dither.cpp

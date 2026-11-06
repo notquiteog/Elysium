@@ -290,6 +290,8 @@ void ShaderCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
         LOG_ERROR(Common_Filesystem, "Failed to create shader cache directories");
         return;
     }
+    VideoCommon::UpgradePipelineCacheFile(base_dir, "opengl", CACHE_VERSION,
+                                          VideoCommon::OpenGLPipelineCacheCompatibleVersion, true);
     shader_cache_filename = VideoCommon::VersionedPipelineCachePath(base_dir, "opengl", CACHE_VERSION);
 
     if (!workers && !strict_context_required) {
