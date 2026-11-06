@@ -31,7 +31,8 @@ void SHR(TranslatorVisitor& v, u64 insn, const IR::U32& shift) {
         base = v.ir.BitReverse(base);
     }
     IR::U32 result;
-    const IR::U32 safe_shift = shr.is_wrapped == 0 ? shift : v.ir.BitwiseAnd(shift, v.ir.Imm32(31));
+    // Keep the backend shift in range even when the final result is clamped.
+    const IR::U32 safe_shift = v.ir.BitwiseAnd(shift, v.ir.Imm32(31));
     if (shr.is_signed == 1) {
         result = IR::U32{v.ir.ShiftRightArithmetic(base, safe_shift)};
     } else {
