@@ -14,7 +14,6 @@
 #ifdef HAS_LSFG
 #include "video_core/renderer_vulkan/present/lsfg_common.h"
 #endif
-#include "video_core/nx2_perf.h"
 #include "video_core/renderer_vulkan/vk_present_manager.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #ifdef EGLANTINE_STREAMLINE
@@ -439,9 +438,7 @@ bool PresentManager::PaceFrame(Frame* frame, std::stop_token token) {
         });
     }
     DrainShown();
-    auto& slack = VideoCommon::Nx2Perf::g_host_pace_slack_ns;
     if (!pacer.Pacing()) {
-        slack.store(VideoCommon::Nx2Perf::kHostPaceOff, std::memory_order_relaxed);
         return false;
     }
     if (frame->render_tick != 0) {
@@ -451,8 +448,6 @@ bool PresentManager::PaceFrame(Frame* frame, std::stop_token token) {
     }
     const auto start = Clock::now();
     const auto target = pacer.Target(start);
-    slack.store(std::chrono::duration_cast<std::chrono::nanoseconds>(target - start).count(),
-                std::memory_order_relaxed);
     if (target <= start) {
         return false;
     }
