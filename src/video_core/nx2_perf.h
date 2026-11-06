@@ -83,7 +83,9 @@ inline bool On(Opt opt) {
             }
             return bits;
         };
-        const unsigned default_off = bit(Opt::FramesAhead) | bit(Opt::CleanWords) |
+        // FramesAhead is on: with Ocarina's CPU readbacks preflushed it is worth ~1 fps (48.3 ->
+        // 49.5 on the Kokiri porch) and it waits for this frame too whenever the GPU falls behind.
+        const unsigned default_off = bit(Opt::CleanWords) |
                                      bit(Opt::IndexRebind) | bit(Opt::SubmitBudget) |
                                      bit(Opt::FenceFlush) | bit(Opt::FragmentBarrier) |
                                      bit(Opt::FrontSleep) | bit(Opt::AsyncPipelines) |
