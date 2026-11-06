@@ -444,9 +444,22 @@ void Puller::ProcessSemaphoreExecute(DmaPusher& dma_pusher, u32 argument) {
             rasterizer->Query(address, VideoCommon::QueryType::Payload,
                               VideoCommon::QueryPropertiesFlags::IsAFence, payload, 0);
         });
+        // An acquire it meets while queued needs no drain (from zortos293/Lichii#179).
+        if (auto& split = VideoCommon::GpuSplit::Get(); split.Active()) {
+            if (const auto device = dma_pusher.memory_manager.GpuToCpuAddress(address)) {
+                split.NoteRelease(*device, address, payload);
+            }
+        }
         return;
     }
-    // Acquires: check once after flushing pending fences; never block the GPU thread on them.
+    // Acquires: the result only feeds the warning below, so with the split the pending fences are
+    // released in order on the back instead of after a drain (from zortos293/Lichii#179). Later
+    // GPU-written list fetches and macro reads still wait for the work before it (NoteSync).
+    if (auto& split = VideoCommon::GpuSplit::Get(); split.Active()) {
+        OnBack([rasterizer = dma_pusher.rasterizer] { rasterizer->ReleaseFences(); });
+        split.NoteSync();
+        return;
+    }
     DrainBack();
     ReleaseFences(dma_pusher);
     const u32 word = dma_pusher.memory_manager.Read<u32>(address);
