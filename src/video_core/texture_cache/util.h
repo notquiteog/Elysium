@@ -20,6 +20,10 @@
 #include "video_core/texture_cache/types.h"
 #include "video_core/textures/texture.h"
 
+namespace Tegra::Texture {
+class UnswizzleWorker;
+}
+
 namespace VideoCommon {
 
 using Tegra::Texture::TICEntry;
@@ -103,7 +107,8 @@ void ExecuteUnswizzlePlan(Tegra::MemoryManager& gpu_memory, const UnswizzlePlan&
 /// that level of the first layer, and the copies are numbered from 0.
 [[nodiscard]] boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(
     Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr, const ImageInfo& info,
-    std::span<const u8> input, std::span<u8> output, s32 first_level = 0);
+    std::span<const u8> input, std::span<u8> output, s32 first_level = 0,
+    Tegra::Texture::UnswizzleWorker* worker = nullptr);
 
 /// For a single-layer 2D block-linear image of 1x1-texel blocks: the host sparse blocks
 /// (tile_width x tile_height texels) that the guest byte ranges (offset, size) touch, merged into
