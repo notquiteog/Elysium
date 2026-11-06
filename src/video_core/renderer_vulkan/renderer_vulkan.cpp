@@ -152,9 +152,9 @@ Device CreateDevice(const vk::Instance& instance, const vk::InstanceDispatch& dl
 
 /// The surface to create the swapchain on. DLSS frame generation looks the window up by surface,
 /// but Streamline can only register one after the device is attached, so recreate it then.
-VkSurfaceKHR SwapchainSurface([[maybe_unused]] const vk::Instance& instance,
-                              [[maybe_unused]] const Core::Frontend::EmuWindow& window,
-                              vk::SurfaceKHR& surface) {
+static VkSurfaceKHR SwapchainSurface([[maybe_unused]] const vk::Instance& instance,
+                                     [[maybe_unused]] const Core::Frontend::EmuWindow& window,
+                                     vk::SurfaceKHR& surface) {
 #ifdef EGLANTINE_STREAMLINE
     if (Streamline::IsFrameGenAvailable()) {
         surface = vk::SurfaceKHR{};
