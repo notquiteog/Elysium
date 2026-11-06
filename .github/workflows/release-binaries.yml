@@ -238,7 +238,7 @@ jobs:
             openssl:p boost:p fmt:p lz4:p nlohmann-json:p zlib:p zstd:p libiconv:p
             vulkan-memory-allocator:p vulkan-devel:p glslang:p enet:p opus:p
             libusb:p unordered_dense:p jbigkit:p xz:p libdeflate:p bzip2:p
-            lerc:p graphite2:p libwebp:p libtiff:p brotli:p ccache:p dav1d:p
+            lerc:p graphite2:p libwebp:p libtiff:p brotli:p ccache:p dav1d:p nasm:p
 
       - name: Restore CPM downloads
         id: cpm-cache

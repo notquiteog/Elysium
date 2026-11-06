@@ -256,7 +256,8 @@
         "min_version": "3.4.12",
         "package": "SDL3",
         "patches": [
-            "0001-use-parent-libusb.patch"
+            "0001-use-parent-libusb.patch",
+            "0002-skip-static-build-tree-export.patch"
         ],
         "repo": "libsdl-org/SDL",
         "version": "release-3.4.20"

@@ -1,0 +1,13 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -4170,7 +4170,9 @@
+   export(TARGETS SDL3-shared NAMESPACE "SDL3::" FILE "SDL3sharedTargets.cmake")
+ endif()
+ 
+-if(SDL_STATIC)
++# A static SDL built with the parent project's libusb (SDL_INSTALL OFF) cannot be exported:
++# the libusb target is in no export set.
++if(SDL_STATIC AND SDL_INSTALL)
+   export(TARGETS SDL3-static NAMESPACE "SDL3::" FILE "SDL3staticTargets.cmake")
+ endif()
+ 
