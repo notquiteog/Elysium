@@ -93,11 +93,6 @@ struct Nx2VideoDecoder::Impl {
     std::optional<FFmpeg::HardwareContext> hardware;
     std::optional<FFmpeg::DecoderContext> context;
     SwsContext* scaler{};
-    /// The colourspace and source range the cached scaler was tuned for.
-    /// sws_setColorspaceDetails does not fully re-tune a live context: toggling the range back
-    /// left the chroma a step off, so the context is rebuilt when either changes.
-    int scaler_space{-1};
-    int scaler_full_range{-1};
     bool open{};
     bool using_hardware{};
     bool received_any{};
@@ -282,6 +277,16 @@ void Nx2VideoDecoder::Render(const Nx2Picture& picture, Nx2PictureFormat format,
         }
         return;
     }
+    impl->scaler = sws_getCachedContext(impl->scaler, f->width, f->height,
+                                        static_cast<AVPixelFormat>(f->format),
+                                        static_cast<int>(width), static_cast<int>(height), target,
+                                        SWS_BILINEAR, nullptr, nullptr, nullptr);
+    if (impl->scaler == nullptr) {
+        LOG_ERROR(HW_GPU, "nx2 video: cannot convert {} to {}",
+                  av_get_pix_fmt_name(static_cast<AVPixelFormat>(f->format)),
+                  av_get_pix_fmt_name(target));
+        return;
+    }
     // The stream's matrix and range; untagged HD video is BT.709.
     int space = SWS_CS_ITU601;
     if (f->colorspace == AVCOL_SPC_BT709 ||
@@ -296,27 +301,9 @@ void Nx2VideoDecoder::Render(const Nx2Picture& picture, Nx2PictureFormat format,
                                   f->format == AV_PIX_FMT_YUVJ444P ||
                                   f->format == AV_PIX_FMT_YUVJ440P ||
                                   f->format == AV_PIX_FMT_YUVJ411P;
-    if (impl->scaler != nullptr &&
-        (impl->scaler_space != space ||
-         impl->scaler_full_range != static_cast<int>(full_range_source))) {
-        sws_freeContext(impl->scaler);
-        impl->scaler = nullptr;
-    }
-    impl->scaler = sws_getCachedContext(impl->scaler, f->width, f->height,
-                                        static_cast<AVPixelFormat>(f->format),
-                                        static_cast<int>(width), static_cast<int>(height), target,
-                                        SWS_BILINEAR, nullptr, nullptr, nullptr);
-    if (impl->scaler == nullptr) {
-        LOG_ERROR(HW_GPU, "nx2 video: cannot convert {} to {}",
-                  av_get_pix_fmt_name(static_cast<AVPixelFormat>(f->format)),
-                  av_get_pix_fmt_name(target));
-        return;
-    }
     const int* coefficients = sws_getCoefficients(space);
     sws_setColorspaceDetails(impl->scaler, coefficients, full_range_source, coefficients,
                              format != Nx2PictureFormat::Nv12, 0, 1 << 16, 1 << 16);
-    impl->scaler_space = space;
-    impl->scaler_full_range = static_cast<int>(full_range_source);
     std::array<u8*, 4> planes{out.data(), nullptr, nullptr, nullptr};
     std::array<int, 4> strides{static_cast<int>(pitch), 0, 0, 0};
     if (format == Nx2PictureFormat::Nv12) {
