@@ -7,6 +7,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <cstring>
 #include <span>
 #include <vector>
@@ -84,9 +85,13 @@ public:
     void Refresh(GPUVAddr gpu_addr, u32 limit) noexcept {
         current_gpu_addr = gpu_addr;
         current_limit = limit;
-        // Mario Brothership reallocates a lot of times, so use aggressive pre-alloc sizes
-        // std::vector<T> by default uses quadratic growth, but that isn't even enough to satisfy brothership
-        const size_t num_descriptors = ((limit + 0x80000) & (~0x7ffff)) + 1;
+        // Small tables round up to a power of two: the 0x80000-entry steps below gave every
+        // one of them 0x80001 descriptors, which for a 32-byte descriptor is over 16 MiB to
+        // hold a handful. Large tables keep the steps, because Mario Brothership reallocates a
+        // lot of times and std::vector's quadratic growth is not enough for it.
+        const size_t num_descriptors = limit < 0x80000
+                                           ? std::bit_ceil(static_cast<size_t>(limit) + 1)
+                                           : ((limit + 0x80000) & (~0x7ffff)) + 1;
         read_descriptors.resize(Common::DivCeil(num_descriptors, 64U));
         ClearReadDescriptors();
         invalidated = false;

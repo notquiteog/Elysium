@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <array>
+#include <bit>
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -317,49 +318,78 @@ TEST_CASE("Descriptor Debug poisoning touches only the current addressable range
     std::ranges::fill(table.LiveBoundIds(), poison);
     REQUIRE(table.bound_ids.capacity() == 0);
 
-    REQUIRE(table.Synchronize(0x1000, 127));
-    REQUIRE(table.bound_ids.size() == 524289);
-    REQUIRE(table.LiveBoundIds().size() == 128);
+    // Both limits below allocate the same 128 entries (std::bit_ceil of 121 and of 101), so the
+    // table never resizes between them and the entries past each addressable range stay put.
+    // They are deliberately not one less than a power of two: that would leave no such entries
+    // and nothing to prove.
+    REQUIRE(table.Synchronize(0x1000, 120));
+    REQUIRE(table.bound_ids.size() == 128);
+    REQUIRE(table.LiveBoundIds().size() == 121);
     std::ranges::fill(table.bound_ids, untouched);
-    REQUIRE(table.Read(memory, 127).second);
-    table.bound_ids[127] = untouched;
+    REQUIRE(table.Read(memory, 120).second);
+    table.bound_ids[120] = untouched;
     const auto* data = table.bound_ids.data();
     const auto capacity = table.bound_ids.capacity();
     std::ranges::fill(table.LiveBoundIds(), poison);
     table.Invalidate();
     REQUIRE(table.invalidated);
     REQUIRE(table.bound_ids[0] == poison);
-    REQUIRE(table.bound_ids[127] == poison);
-    REQUIRE(table.bound_ids[128] == untouched);
+    REQUIRE(table.bound_ids[120] == poison);
+    REQUIRE(table.bound_ids[121] == untouched);
     REQUIRE(table.bound_ids.back() == untouched);
     REQUIRE(table.bound_ids.data() == data);
     REQUIRE(table.bound_ids.capacity() == capacity);
-    REQUIRE(table.Read(memory, 127).second);
+    REQUIRE(table.Read(memory, 120).second);
     REQUIRE_FALSE(table.invalidated);
-    REQUIRE(table.bound_ids[127] == Id{0});
-    REQUIRE(table.bound_ids[128] == untouched);
+    REQUIRE(table.bound_ids[120] == Id{0});
+    REQUIRE(table.bound_ids[121] == untouched);
 
-    REQUIRE(table.Synchronize(0x1000, 0));
-    REQUIRE(table.LiveBoundIds().size() == 1);
-    table.bound_ids[1] = untouched;
+    REQUIRE(table.Synchronize(0x1000, 100));
+    REQUIRE(table.bound_ids.size() == 128);
+    REQUIRE(table.LiveBoundIds().size() == 101);
+    table.bound_ids[101] = untouched;
     std::ranges::fill(table.LiveBoundIds(), poison);
     table.Invalidate();
     REQUIRE(table.bound_ids[0] == poison);
-    REQUIRE(table.bound_ids[1] == untouched);
-    REQUIRE(table.Read(memory, 0).second);
-    REQUIRE(table.bound_ids[0] == Id{0});
-    REQUIRE(table.bound_ids[1] == untouched);
+    REQUIRE(table.bound_ids[100] == poison);
+    REQUIRE(table.bound_ids[101] == untouched);
+    REQUIRE(table.Read(memory, 100).second);
+    REQUIRE(table.bound_ids[100] == Id{0});
+    REQUIRE(table.bound_ids[101] == untouched);
 
-    REQUIRE(table.Synchronize(0x1000, 127));
-    REQUIRE(table.LiveBoundIds().size() == 128);
+    REQUIRE(table.Synchronize(0x1000, 120));
+    REQUIRE(table.LiveBoundIds().size() == 121);
     REQUIRE(table.bound_ids[1] == Id{0});
     REQUIRE(table.Read(memory, 1).second);
     REQUIRE_FALSE(table.Read(memory, 1).second);
     std::ranges::fill(table.LiveBoundIds(), poison);
     table.Invalidate();
-    REQUIRE(table.bound_ids[127] == poison);
-    REQUIRE(table.bound_ids[128] == untouched);
-    REQUIRE(table.Read(memory, 127).second);
+    REQUIRE(table.bound_ids[120] == poison);
+    REQUIRE(table.bound_ids[121] == untouched);
+    REQUIRE(table.Read(memory, 120).second);
+}
+
+TEST_CASE("Small descriptor tables are not rounded up to the large step",
+          "[descriptor_table]") {
+    using Id = Common::SlotId;
+    VideoCommon::DescriptorTable<u64, Id> table;
+    // The 0x80000-entry step gave every table 0x80001 entries, so a table addressing a handful
+    // of 32-byte descriptors still took over 16 MiB for them.
+    for (const u32 limit : {0U, 1U, 63U, 100U, 127U, 1000U, 0x7ffffU}) {
+        CAPTURE(limit);
+        REQUIRE(table.Synchronize(0x1000, limit));
+        REQUIRE(table.bound_ids.size() >= static_cast<size_t>(limit) + 1);
+        REQUIRE(table.bound_ids.size() == std::bit_ceil(static_cast<size_t>(limit) + 1));
+        REQUIRE(table.bound_ids.size() < 0x80001);
+        REQUIRE(table.LiveBoundIds().size() == static_cast<size_t>(limit) + 1);
+    }
+    // Large ones keep the steps: Mario Brothership reallocates a lot of times.
+    for (const u32 limit : {0x80000U, 0x80001U}) {
+        CAPTURE(limit);
+        REQUIRE(table.Synchronize(0x1000, limit));
+        REQUIRE(table.bound_ids.size() ==
+                ((static_cast<size_t>(limit) + 0x80000) & ~size_t{0x7ffff}) + 1);
+    }
 }
 
 TEST_CASE("Descriptor ID lookup CPU benchmark", "[.][descriptor_lookup_bench]") {
