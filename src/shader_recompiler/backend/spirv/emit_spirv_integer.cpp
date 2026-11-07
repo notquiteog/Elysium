@@ -44,13 +44,19 @@ Id EmitIAdd32(EmitContext& ctx, IR::Inst* inst, Id a, Id b) {
     SetZeroFlag(ctx, inst, result);
     SetSignFlag(ctx, inst, result);
     if (IR::Inst * overflow{inst->GetAssociatedPseudoOperation(IR::Opcode::GetOverflowFromOp)}) {
-        // https://stackoverflow.com/questions/55468823/how-to-detect-integer-overflow-in-c
+        // Signed a + b overflows when b > INT32_MAX - a for a >= 0, and when b < INT32_MIN - a
+        // for a < 0. Both bounds were taken from INT32_MAX - a, and in 32-bit wraparound
+        // INT32_MAX - a is (INT32_MIN - a) - 1, so the negative side tested one too low and
+        // missed the boundary itself: a = INT32_MIN with b = -1 underflows and was reported as
+        // no overflow.
         constexpr u32 s32_max{static_cast<u32>((std::numeric_limits<s32>::max)())};
+        constexpr u32 s32_min{static_cast<u32>((std::numeric_limits<s32>::min)())};
         const Id is_positive{ctx.OpSGreaterThanEqual(ctx.U1, a, ctx.u32_zero_value)};
         const Id sub_a{ctx.OpISub(ctx.U32[1], ctx.Const(s32_max), a)};
+        const Id sub_min_a{ctx.OpISub(ctx.U32[1], ctx.Const(s32_min), a)};
 
         const Id positive_test{ctx.OpSGreaterThan(ctx.U1, b, sub_a)};
-        const Id negative_test{ctx.OpSLessThan(ctx.U1, b, sub_a)};
+        const Id negative_test{ctx.OpSLessThan(ctx.U1, b, sub_min_a)};
         const Id carry_flag{ctx.OpSelect(ctx.U1, is_positive, positive_test, negative_test)};
         overflow->SetDefinition(carry_flag);
         overflow->Invalidate();
