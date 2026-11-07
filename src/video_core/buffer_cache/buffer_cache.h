@@ -1841,27 +1841,6 @@ void BufferCache<P>::DoUpdateComputeBuffers() {
 }
 
 template <class P>
-void BufferCache<P>::RefreshMultiRangeSegments(std::vector<MultiRangeSegment>& pool) {
-    if constexpr (requires { runtime.BindMultiRangeStorageBuffer(u64{}, bool{}); }) {
-        // Resolving one segment can join, and so delete, the buffer of another (DeleteBuffer
-        // clears its id): repeat until every segment points at a live buffer.
-        for (int pass = 0; pass < 16; ++pass) {
-            bool resolved = false;
-            for (MultiRangeSegment& segment : pool) {
-                if (!segment.buffer_id) {
-                    segment.buffer_id = FindBuffer(segment.device_addr, segment.size,
-                                                   runtime.PrefersSparseSources());
-                    resolved = true;
-                }
-            }
-            if (!resolved) {
-                return;
-            }
-        }
-    }
-}
-
-template <class P>
 void BufferCache<P>::UpdateIndexBuffer() {
     // We have to check for the dirty flags and index count
     // The index count is currently changed without updating the dirty flags
