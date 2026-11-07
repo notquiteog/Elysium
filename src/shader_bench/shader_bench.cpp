@@ -49,6 +49,7 @@
 #include "video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
 #include "video_core/pipeline_cache_files.h"
+#include "video_core/shader_reuse.h"
 #include "video_core/shader_environment.h"
 #include "video_core/transform_feedback.h"
 
@@ -62,6 +63,9 @@ using Vulkan::FixedPipelineState;
 // The same constant vk_pipeline_cache.cpp uses, rather than a copy of the number: LoadPipelines
 // deletes files of another version, and a stale literal here would reject every real cache.
 constexpr u32 CACHE_VERSION = VideoCommon::VulkanPipelineCacheVersion;
+
+/// --reuse: emitted SPIR-V kept and handed back to pipelines whose emission inputs match.
+VideoCommon::ShaderReuse* g_reuse{};
 
 struct Pipeline {
     bool is_compute{};
@@ -403,6 +407,7 @@ void BuildGraphics(Pools& pools, const Shader::Profile& profile,
     const bool uses_vertex_a{key.unique_hashes[0] != 0};
     const bool uses_vertex_b{key.unique_hashes[1] != 0};
     Shader::IR::Program* layer_source_program{};
+    std::array<u64, Maxwell::MaxShaderProgram> env_hashes{};
     size_t env_index{0};
     for (size_t index = 0; index < Maxwell::MaxShaderProgram; ++index) {
         const bool is_emulated_stage = layer_source_program != nullptr &&
@@ -416,6 +421,7 @@ void BuildGraphics(Pools& pools, const Shader::Profile& profile,
         if (key.unique_hashes[index] == 0) {
             continue;
         }
+        env_hashes[index] = pipeline.envs.at(env_index).ContentHash();
         Shader::Environment& env{pipeline.envs.at(env_index)};
         ++env_index;
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
@@ -449,10 +455,31 @@ void BuildGraphics(Pools& pools, const Shader::Profile& profile,
         }
         Shader::IR::Program& program{programs[index]};
         const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage)};
+        // Runs on a hit too: it rewrites the program for this runtime info, and the next stage's
+        // runtime info is built from what it leaves behind.
         Shader::Maxwell::ConvertLegacyToGeneric(program, runtime_info);
-        const std::vector<u32> code{
+        const VideoCommon::ShaderReuse::Inputs reuse_inputs{
+            .shader_hash = key.unique_hashes[index],
+            .environment_hash = env_hashes[index],
+            .profile = &profile,
+            .host_info = &host_info,
+            .runtime_info = &runtime_info,
+            .bindings = binding,
+        };
+        if (g_reuse) {
+            if (const auto hit = g_reuse->Find(reuse_inputs)) {
+                result.module_hashes.push_back(HashCode(*hit->code));
+                binding = hit->bindings;
+                previous_stage = &program;
+                continue;
+            }
+        }
+        std::vector<u32> code{
             Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, program, binding)};
         result.module_hashes.push_back(HashCode(code));
+        if (g_reuse) {
+            g_reuse->Insert(reuse_inputs, std::move(code), binding);
+        }
         previous_stage = &program;
     }
 }
@@ -498,7 +525,7 @@ u64 PipelineId(const Pipeline& pipeline) {
 }
 
 void PrintUsage() {
-    std::fputs("usage: eden-shader-bench <vulkan.bin> [--repeat N] [--hashes FILE] [--scale 1|2|3]"
+    std::fputs("usage: eden-shader-bench <vulkan.bin> [--repeat N] [--hashes FILE] [--reuse] [--scale 1|2|3]"
                " [--top N] [--only INDEX]\n"
                "  The cache file is copied to a temporary file first; it is never modified.\n",
                stderr);
@@ -512,6 +539,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::filesystem::path input{argv[1]};
+    bool use_reuse{};
     int repeat{3};
     int top{10};
     int scale{1};
@@ -519,6 +547,12 @@ int main(int argc, char** argv) {
     std::optional<std::filesystem::path> hashes_path;
     for (int i = 2; i < argc; ++i) {
         const std::string_view arg{argv[i]};
+        // --reuse takes no value, so the "is there a next argument" check belongs to the options
+        // that do rather than to every one of them.
+        if (arg == "--reuse") {
+            use_reuse = true;
+            continue;
+        }
         if (i + 1 >= argc) {
             PrintUsage();
             return 1;
@@ -680,6 +714,10 @@ int main(int argc, char** argv) {
 
     const Shader::Profile profile{MakeProfile()};
     const Shader::HostTranslateInfo host_info{MakeHostInfo()};
+    VideoCommon::ShaderReuse reuse;
+    if (use_reuse) {
+        g_reuse = &reuse;
+    }
     Pools pools;
 
     // Run 0 warms up the pools and caches and gives the reference output; runs 1..N are timed.
@@ -789,6 +827,14 @@ int main(int argc, char** argv) {
     }
     if (hashes) {
         std::fclose(hashes);
+    }
+    if (use_reuse) {
+        const u64 hits = reuse.Hits();
+        const u64 total = hits + reuse.Misses();
+        fmt::print("reuse: {} hits of {} emissions ({:.1f}%), {} MiB kept\n", hits, total,
+                   100.0 * static_cast<double>(hits) /
+                       static_cast<double>(total == 0 ? 1 : total),
+                   reuse.Bytes() >> 20);
     }
     fmt::print("{} SPIR-V modules, {} pipelines failed or skipped, output hash {:016x}\n",
                num_modules, num_errors, combined);

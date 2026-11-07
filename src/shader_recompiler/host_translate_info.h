@@ -62,6 +62,10 @@ struct HostTranslateInfo {
         ApplyDescriptorLimitFallback(max_descriptor_set_input_attachements);
     }
 
+    /// Defaulted so it stays complete when a field is added; the shader reuse cache
+    /// compares these rather than digesting them.
+    bool operator==(const HostTranslateInfo&) const = default;
+
 private:
     static void ApplyDescriptorLimitFallback(u32& limit) noexcept {
         if (limit == 0) {

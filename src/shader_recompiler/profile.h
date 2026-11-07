@@ -120,6 +120,10 @@ struct Profile {
     bool SupportsSubgroupStage(Stage stage) const {
         return (supported_subgroup_stages & (1u << static_cast<u32>(stage))) != 0;
     }
+
+    /// Defaulted so it stays complete when a field is added: the shader reuse cache
+    /// confirms a candidate by comparing these, not by a hand-written digest.
+    bool operator==(const Profile&) const = default;
 };
 
 } // namespace Shader

@@ -81,6 +81,8 @@ struct TransformFeedbackVarying {
     u32 stride{};
     u32 offset{};
     u32 components{};
+
+    bool operator==(const TransformFeedbackVarying&) const = default;
 };
 
 struct RuntimeInfo {
@@ -117,6 +119,10 @@ struct RuntimeInfo {
 
     /// Dual source blending
     bool dual_source_blend{};
+
+    /// Defaulted so it stays complete when a field is added: the shader reuse cache
+    /// confirms a candidate by comparing these, not by a hand-written digest.
+    bool operator==(const RuntimeInfo&) const = default;
 };
 
 } // namespace Shader

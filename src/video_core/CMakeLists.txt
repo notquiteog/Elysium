@@ -110,6 +110,8 @@ add_library(video_core STATIC
     guest_memory.h
     host_display.cpp
     host_display.h
+    shader_reuse.cpp
+    shader_reuse.h
     invalidation_accumulator.h
     memory_manager.cpp
     memory_manager.h
