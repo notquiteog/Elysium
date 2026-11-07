@@ -50,12 +50,17 @@ public:
                                                 std::memory_order_relaxed));
     }
 
-    /// Calls `callback` for each write collected and not yet gathered, without consuming them.
+    /// Calls `callback` for each write collected and not yet applied, without consuming them:
+    /// those still collecting and those a Gather is handing out. Missing the latter let an async
+    /// download write the GPU's older bytes over them (Ocarina's Z-target reticle lagged two
+    /// frames on about half of them).
     void ForEachPending(const std::function<void(PAddr, size_t)>& callback) {
         std::vector<TransformAddress> pending;
         {
+            std::scoped_lock gather_lk(gather_guard);
             std::scoped_lock lk(guard);
             pending = back_buffer;
+            pending.insert(pending.end(), front_buffer.begin(), front_buffer.end());
             const TransformAddress t = current.load(std::memory_order_acquire);
             if (IsValid(t.address)) {
                 pending.push_back(t);
