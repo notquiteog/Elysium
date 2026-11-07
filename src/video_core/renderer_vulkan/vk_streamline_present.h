@@ -76,7 +76,22 @@ public:
     void Apply(Frame* frame);
 
 private:
+    /// Everything slDLSSNRSetOptions takes from the settings, so a change of any of them is
+    /// spotted while a game runs and handed over on the next frame.
+    struct Options {
+        u32 intensity{};
+        u32 model{}; ///< An sl::DLSSMode value
+        u32 preset{};
+        u32 local_tone{};
+        u32 local_structure{};
+        u32 global_tone{};
+        bool auto_mask{};
+
+        bool operator==(const Options&) const = default;
+    };
+
     void CreateImages(VkExtent2D extent);
+    [[nodiscard]] static Options DesiredOptions();
 
     const Device& device;
     Scheduler& scheduler;
@@ -89,7 +104,11 @@ private:
     vk::Image output;
     vk::ImageView output_view;
     u32 frame_index{};
-    u32 applied_intensity{~0U};
+    Options applied{};  ///< The options Streamline last took
+    bool have_applied{};
+    Options rejected{}; ///< Options Streamline turned down; tried again once they change
+    bool have_rejected{};
+    std::atomic<bool> options_rejected{};
     std::atomic<bool> failed{};
 };
 

@@ -325,24 +325,30 @@ bool Start() {
     if (state.started) {
         return true;
     }
+    if (const char* const off = std::getenv("EDEN_STREAMLINE"); off && off[0] == '0') {
+        return false;
+    }
+    // What is switched on right now only decides what gets said in the log: every feature the
+    // loader can give us is loaded, so DLSS, DLSS 5 neural rendering and DLSS frame generation
+    // can be switched over in the Graphics settings while a game runs.
     const bool want_dlss = Settings::values.nvidia_dlss.GetValue();
     const bool want_neural = Settings::values.nvidia_dlss_nr.GetValue();
     const bool want_frame_gen = WantsFrameGen();
-    if (!want_dlss && !want_neural && !want_frame_gen) {
-        return false;
-    }
+    const bool want_any = want_dlss || want_neural || want_frame_gen;
     if (!state.module) {
         const DlssFiles files = FindDlssFiles();
+        if (files.interposer.empty()) {
+            if (want_any) {
+                LOG_WARNING(Render_Vulkan,
+                            "NVIDIA DLSS is on, but sl.interposer.dll (NVIDIA Streamline) is not "
+                            "in {} (the Graphics settings can download it); using FSR 3.1",
+                            Common::FS::PathToUTF8String(files.folder));
+            }
+            return false;
+        }
         if (!files.model.empty() && !IsSignedByNvidia(files.model)) {
             LOG_WARNING(Render_Vulkan, "DLSS model {} is not signed by NVIDIA; using FSR 3.1",
                         Common::FS::PathToUTF8String(files.model));
-            return false;
-        }
-        if (files.interposer.empty()) {
-            LOG_WARNING(Render_Vulkan,
-                        "NVIDIA DLSS is on, but sl.interposer.dll (NVIDIA Streamline) is not in "
-                        "{} (the Graphics settings can download it); using FSR 3.1",
-                        Common::FS::PathToUTF8String(files.folder));
             return false;
         }
         if (!Load(state, files.interposer)) {
@@ -362,16 +368,9 @@ bool Start() {
     }
 
     // Frame generation needs Reflex, and PCL for its markers.
-    std::vector<sl::Feature> features;
-    if (want_dlss) {
-        features.push_back(sl::kFeatureDLSS);
-    }
-    if (want_neural) {
-        features.push_back(sl::kFeatureDLSS_NR);
-    }
-    if (want_frame_gen) {
-        features.insert(features.end(), {sl::kFeatureDLSS_G, sl::kFeatureReflex, sl::kFeaturePCL});
-    }
+    std::vector<sl::Feature> features{sl::kFeatureDLSS, sl::kFeatureDLSS_NR,
+                                      sl::kFeatureDLSS_G, sl::kFeatureReflex,
+                                      sl::kFeaturePCL};
 
     // Streamline's plugins come from the loader's folder or the NVIDIA app's downloads (OTA); the
     // DLSS model from the loader's folder, else the NVIDIA app's copy.
@@ -434,10 +433,10 @@ bool Start() {
         }
         return true;
     };
-    state.dlss = want_dlss && require(sl::kFeatureDLSS);
-    state.neural_rendering = want_neural && require(sl::kFeatureDLSS_NR);
-    state.frame_gen = want_frame_gen && require(sl::kFeatureDLSS_G) &&
-                      require(sl::kFeatureReflex) && require(sl::kFeaturePCL);
+    state.dlss = require(sl::kFeatureDLSS);
+    state.neural_rendering = require(sl::kFeatureDLSS_NR);
+    state.frame_gen = require(sl::kFeatureDLSS_G) && require(sl::kFeatureReflex) &&
+                      require(sl::kFeaturePCL);
     if (!state.dlss && !state.neural_rendering && !state.frame_gen) {
         api.shutdown();
         return false;

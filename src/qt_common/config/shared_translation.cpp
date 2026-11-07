@@ -178,14 +178,34 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
               "the NVIDIA app has downloaded it; Elysium does not ship NVIDIA's files. Use the "
               "download button below.\nCurrently requires Fire Emblem: Fortune's Weave and "
               "EDEN_NX2_DLSS_REPLACEMENT=dlss. Without that override, its spatial workaround "
-              "remains active.\nTakes effect when a game starts."));
+              "remains active.\nCan be switched while a game runs, as long as the loader was "
+              "there when it started."));
     INSERT(Settings, nvidia_dlss_nr, tr("NVIDIA DLSS 5 neural rendering (experimental)"),
            tr("Runs NVIDIA DLSS 5 neural rendering on every presented frame, on GeForce RTX "
               "50 series cards.\nNeeds NVIDIA Streamline 2.13 or newer with sl.dlss_nr.dll and "
               "nvngx_dlssnr.dll in the streamline folder; Elysium does not ship NVIDIA's "
-              "files.\nTakes effect when a game starts."));
+              "files.\nCan be switched while a game runs, as long as the loader was there when "
+              "it started."));
     INSERT(Settings, nvidia_dlss_nr_intensity, tr("DLSS 5 Intensity:"),
            tr("How strongly DLSS 5 neural rendering changes the image."));
+    INSERT(Settings, nvidia_dlss_nr_model, tr("DLSS 5 Model:"),
+           tr("Which DLSS 5 network runs on each frame. Quality keeps the most detail and DLAA "
+              "works at the full frame size; Performance costs the least.\nTakes effect on the "
+              "next frame."));
+    INSERT(Settings, nvidia_dlss_nr_preset, tr("DLSS 5 Model Variant:"),
+           tr("Picks between the networks NVIDIA ships for the chosen model. 1 is the default "
+              "sl.dlss_nr.dll chooses; NVIDIA documents no meaning for the others, so they are "
+              "worth trying by eye.\nA variant the installed sl.dlss_nr.dll does not have turns "
+              "neural rendering off until this is changed again."));
+    INSERT(Settings, nvidia_dlss_nr_local_tone, tr("Local Tone Strength:"),
+           tr("How far DLSS 5 may change the brightness of small areas."));
+    INSERT(Settings, nvidia_dlss_nr_local_structure, tr("Local Structure Strength:"),
+           tr("How far DLSS 5 may rebuild fine detail and texture."));
+    INSERT(Settings, nvidia_dlss_nr_global_tone, tr("Global Tone Strength:"),
+           tr("How far DLSS 5 may change the brightness of the frame as a whole."));
+    INSERT(Settings, nvidia_dlss_nr_auto_mask, tr("Automatic Mask"),
+           tr("Lets DLSS 5 decide for itself which parts of the frame to leave alone, instead of "
+              "working on all of it."));
     INSERT(Settings, anti_aliasing, tr("Anti-Aliasing Method:"),
            tr("The anti-aliasing method to use.\nSMAA offers the best quality.\nFXAA "
               "can produce a more stable picture in lower resolutions."));
@@ -536,6 +556,13 @@ std::unique_ptr<ComboboxTranslationMap> ComboboxEnumeration(QObject* parent) {
              PAIR(ResolutionSetup, Res7X, tr("7X (5040p/7560p)")),
              PAIR(ResolutionSetup, Res8X, tr("8X (5760p/8640p)")),
          }});
+    translations->insert({Settings::EnumMetadata<Settings::DlssNrModel>::Index(),
+                          {
+                              PAIR(DlssNrModel, Quality, tr("Quality")),
+                              PAIR(DlssNrModel, Balanced, tr("Balanced")),
+                              PAIR(DlssNrModel, Performance, tr("Performance")),
+                              PAIR(DlssNrModel, Dlaa, tr("DLAA (full size)")),
+                          }});
     translations->insert({Settings::EnumMetadata<Settings::FrameGenType>::Index(),
                           {
                               PAIR(FrameGenType, Lsfg, tr("Lossless Scaling (LSFG)")),

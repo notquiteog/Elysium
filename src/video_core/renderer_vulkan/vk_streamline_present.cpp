@@ -8,6 +8,7 @@
 #include <array>
 #include <cstdlib>
 #include <mutex>
+#include <string_view>
 
 #include "common/logging.h"
 #include "common/settings.h"
@@ -269,8 +270,45 @@ void StreamlineNeuralRendering::CreateImages(VkExtent2D new_extent) {
     scene.Resize(extent);
 }
 
+StreamlineNeuralRendering::Options StreamlineNeuralRendering::DesiredOptions() {
+    // DLSS-NR takes its quality as an sl::DLSSMode: 1 performance, 2 balanced, 3 quality, 6 DLAA.
+    const auto model = []() -> u32 {
+        switch (Settings::values.nvidia_dlss_nr_model.GetValue()) {
+        case Settings::DlssNrModel::Performance:
+            return 1;
+        case Settings::DlssNrModel::Balanced:
+            return 2;
+        case Settings::DlssNrModel::Dlaa:
+            return 6;
+        case Settings::DlssNrModel::Quality:
+        default:
+            return 3;
+        }
+    };
+    return Options{
+        .intensity = Settings::values.nvidia_dlss_nr_intensity.GetValue(),
+        .model = model(),
+        .preset = Settings::values.nvidia_dlss_nr_preset.GetValue(),
+        .local_tone = Settings::values.nvidia_dlss_nr_local_tone.GetValue(),
+        .local_structure = Settings::values.nvidia_dlss_nr_local_structure.GetValue(),
+        .global_tone = Settings::values.nvidia_dlss_nr_global_tone.GetValue(),
+        .auto_mask = Settings::values.nvidia_dlss_nr_auto_mask.GetValue(),
+    };
+}
+
 void StreamlineNeuralRendering::Apply(Frame* frame) {
     if (failed || !IsEnabled()) {
+        return;
+    }
+    const Options desired = DesiredOptions();
+    if (options_rejected.exchange(false)) {
+        // Streamline turned down what we last sent: hold it against those exact settings only,
+        // so changing any of them in the Graphics settings tries again.
+        rejected = applied;
+        have_rejected = have_applied;
+        have_applied = false;
+    }
+    if (have_rejected && rejected == desired) {
         return;
     }
     const VkExtent2D frame_extent{frame->width, frame->height};
@@ -280,12 +318,12 @@ void StreamlineNeuralRendering::Apply(Frame* frame) {
         LOG_INFO(Render_Vulkan, "NVIDIA DLSS 5 neural rendering on {}x{} frames",
                  frame_extent.width, frame_extent.height);
     }
-    const u32 intensity = Settings::values.nvidia_dlss_nr_intensity.GetValue();
-    const bool options_changed = recreated || intensity != applied_intensity;
-    applied_intensity = intensity;
+    const bool options_changed = recreated || !have_applied || !(applied == desired);
+    applied = desired;
+    have_applied = true;
 
     scheduler.RequestOutsideRenderPassOperationContext();
-    scheduler.Record([this, recreated, options_changed, intensity, index = frame_index++,
+    scheduler.Record([this, recreated, options_changed, desired, index = frame_index++,
                       frame_image = *frame->image, size = frame_extent, input_image = *input,
                       input_handle = *input_view, output_image = *output,
                       output_handle = *output_view](vk::CommandBuffer cmdbuf) {
@@ -324,7 +362,15 @@ void StreamlineNeuralRendering::Apply(Frame* frame) {
             if (options_changed) {
                 Streamline::DlssNrOptions options;
                 options.mode = Streamline::DlssNrMode::eOn;
-                options.intensity = static_cast<f32>(intensity) / 100.0f;
+                options.intensity = static_cast<f32>(desired.intensity) / 100.0f;
+                options.localToneStrength = static_cast<f32>(desired.local_tone) / 100.0f;
+                options.localStructureStrength =
+                    static_cast<f32>(desired.local_structure) / 100.0f;
+                options.globalToneStrength = static_cast<f32>(desired.global_tone) / 100.0f;
+                options.preset = desired.preset;
+                options.useAutoMask =
+                    desired.auto_mask ? sl::Boolean::eTrue : sl::Boolean::eFalse;
+                options.performanceMode = desired.model;
                 const auto set = reinterpret_cast<Streamline::PFun_slDLSSNRSetOptions*>(set_options);
                 result = set(viewport, options);
             }
@@ -379,11 +425,18 @@ void StreamlineNeuralRendering::Apply(Frame* frame) {
             }
         }
         if (result != sl::Result::eOk) {
+            // A model or preset Streamline won't take is the user's to change, so only the rest
+            // turns the feature off for the session.
+            const bool only_options = std::string_view{stage} == "slDLSSNRSetOptions";
             LOG_ERROR(Render_Vulkan,
-                      "NVIDIA DLSS 5 neural rendering failed at {} (Streamline result {}); "
-                      "turning it off",
-                      stage, static_cast<int>(result));
-            failed = true;
+                      "NVIDIA DLSS 5 neural rendering failed at {} (Streamline result {}); {}",
+                      stage, static_cast<int>(result),
+                      only_options ? "waiting for these settings to change" : "turning it off");
+            if (only_options) {
+                options_rejected = true;
+            } else {
+                failed = true;
+            }
             cmdbuf.PipelineBarrier(
                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
                 ImageBarrier(frame_image, VK_ACCESS_TRANSFER_READ_BIT,

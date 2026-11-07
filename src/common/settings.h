@@ -390,10 +390,13 @@ struct Values {
                                                            Specialization::Percentage,
                                                        true,
                                                        true};
-    // NVIDIA DLSS (through NVIDIA Streamline) in place of a game's DLSS.
-    SwitchableSetting<bool> nvidia_dlss{linkage, false, "nvidia_dlss", Category::Renderer};
+    // NVIDIA DLSS (through NVIDIA Streamline) in place of a game's DLSS. Streamline loads every
+    // feature it can when its loader is present, so these switch over while a game runs.
+    SwitchableSetting<bool> nvidia_dlss{linkage,          false, "nvidia_dlss",
+                                        Category::Renderer, Specialization::Default, true, true};
     // NVIDIA DLSS 5 neural rendering (DLSS-NR, through NVIDIA Streamline) on the presented frame.
-    SwitchableSetting<bool> nvidia_dlss_nr{linkage, false, "nvidia_dlss_nr", Category::Renderer};
+    SwitchableSetting<bool> nvidia_dlss_nr{linkage,          false, "nvidia_dlss_nr",
+                                           Category::Renderer, Specialization::Default, true, true};
     SwitchableSetting<u32, true> nvidia_dlss_nr_intensity{linkage,
                                                           100,
                                                           0,
@@ -405,6 +408,68 @@ struct Values {
                                                           true,
                                                           true,
                                                           &nvidia_dlss_nr};
+    // Which DLSS 5 network runs, as an sl::DLSSMode: quality, balanced, performance or DLAA.
+    SwitchableSetting<DlssNrModel, true> nvidia_dlss_nr_model{linkage,
+                                                              DlssNrModel::Quality,
+                                                              "nvidia_dlss_nr_model",
+                                                              Category::Renderer,
+                                                              Specialization::Default,
+                                                              true,
+                                                              true,
+                                                              &nvidia_dlss_nr};
+    // The network variant within that model. NVIDIA documents no meaning for the numbers; 1 is
+    // the default sl.dlss_nr.dll picks.
+    SwitchableSetting<u32, true> nvidia_dlss_nr_preset{linkage,
+                                                       1,
+                                                       0,
+                                                       7,
+                                                       "nvidia_dlss_nr_preset",
+                                                       Category::Renderer,
+                                                       Specialization::Countable,
+                                                       true,
+                                                       true,
+                                                       &nvidia_dlss_nr};
+    SwitchableSetting<u32, true> nvidia_dlss_nr_local_tone{linkage,
+                                                           100,
+                                                           0,
+                                                           200,
+                                                           "nvidia_dlss_nr_local_tone",
+                                                           Category::Renderer,
+                                                           Specialization::Scalar |
+                                                               Specialization::Percentage,
+                                                           true,
+                                                           true,
+                                                           &nvidia_dlss_nr};
+    SwitchableSetting<u32, true> nvidia_dlss_nr_local_structure{linkage,
+                                                                100,
+                                                                0,
+                                                                200,
+                                                                "nvidia_dlss_nr_local_structure",
+                                                                Category::Renderer,
+                                                                Specialization::Scalar |
+                                                                    Specialization::Percentage,
+                                                                true,
+                                                                true,
+                                                                &nvidia_dlss_nr};
+    SwitchableSetting<u32, true> nvidia_dlss_nr_global_tone{linkage,
+                                                            100,
+                                                            0,
+                                                            200,
+                                                            "nvidia_dlss_nr_global_tone",
+                                                            Category::Renderer,
+                                                            Specialization::Scalar |
+                                                                Specialization::Percentage,
+                                                            true,
+                                                            true,
+                                                            &nvidia_dlss_nr};
+    SwitchableSetting<bool> nvidia_dlss_nr_auto_mask{linkage,
+                                                     false,
+                                                     "nvidia_dlss_nr_auto_mask",
+                                                     Category::Renderer,
+                                                     Specialization::Default,
+                                                     true,
+                                                     true,
+                                                     &nvidia_dlss_nr};
     SwitchableSetting<AspectRatio, true> aspect_ratio{linkage,
                                                       AspectRatio::R16_9,
                                                       "aspect_ratio",
@@ -446,7 +511,7 @@ struct Values {
                                                 true};
 
     SwitchableSetting<bool> frame_gen{linkage, false, "frame_gen", Category::Renderer,
-                                      Specialization::Default, true, false};
+                                      Specialization::Default, true, true};
 
     SwitchableSetting<FrameGenType> frame_gen_type{linkage,
                                                    FrameGenType::Fsr3,
@@ -454,7 +519,7 @@ struct Values {
                                                    Category::Renderer,
                                                    Specialization::Default,
                                                    true,
-                                                   false,
+                                                   true,
                                                    &frame_gen};
 
     SwitchableSetting<u32, true> frame_gen_multiplier{linkage,
@@ -465,7 +530,7 @@ struct Values {
                                                       Category::Renderer,
                                                       Specialization::Countable,
                                                       true,
-                                                      false,
+                                                      true,
                                                       &frame_gen};
 
     SwitchableSetting<u32, true> frame_gen_target_rate{linkage,
@@ -485,7 +550,7 @@ struct Values {
                                                       Category::Renderer,
                                                       Specialization::Default,
                                                       true,
-                                                      false,
+                                                      true,
                                                       &frame_gen};
 
     SwitchableSetting<u32, true> frame_gen_flow_scale{linkage,
@@ -508,7 +573,7 @@ struct Values {
                                                         Category::Renderer,
                                                         Specialization::Countable,
                                                         true,
-                                                        false,
+                                                        true,
                                                         &frame_gen};
 
     SwitchableSetting<bool> frame_gen_dump_flow{linkage, false, "frame_gen_dump_flow",

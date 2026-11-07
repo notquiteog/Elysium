@@ -220,6 +220,9 @@ void ConfigureGraphics::Setup(const ConfigurationShared::Builder& builder) {
     std::map<u32, QWidget*> hold_graphics;
     std::vector<QWidget*> hold_api;
     QCheckBox* frame_gen_checkbox = nullptr;
+#ifdef EGLANTINE_STREAMLINE
+    QCheckBox* nvidia_dlss_nr_checkbox = nullptr;
+#endif
 
     for (const auto setting : Settings::values.linkage.by_category[Settings::Category::Renderer]) {
 #ifndef HAS_RESHADE
@@ -228,8 +231,16 @@ void ConfigureGraphics::Setup(const ConfigurationShared::Builder& builder) {
         }
 #endif
 #ifndef EGLANTINE_STREAMLINE
-        // Only builds with NVIDIA Streamline (Windows) can use it.
-        if (setting->Id() == Settings::values.nvidia_dlss.Id()) {
+        // Only builds with NVIDIA Streamline (Windows) can use any of it.
+        if (setting->Id() == Settings::values.nvidia_dlss.Id() ||
+            setting->Id() == Settings::values.nvidia_dlss_nr.Id() ||
+            setting->Id() == Settings::values.nvidia_dlss_nr_intensity.Id() ||
+            setting->Id() == Settings::values.nvidia_dlss_nr_model.Id() ||
+            setting->Id() == Settings::values.nvidia_dlss_nr_preset.Id() ||
+            setting->Id() == Settings::values.nvidia_dlss_nr_local_tone.Id() ||
+            setting->Id() == Settings::values.nvidia_dlss_nr_local_structure.Id() ||
+            setting->Id() == Settings::values.nvidia_dlss_nr_global_tone.Id() ||
+            setting->Id() == Settings::values.nvidia_dlss_nr_auto_mask.Id()) {
             continue;
         }
 #endif
@@ -354,6 +365,9 @@ void ConfigureGraphics::Setup(const ConfigurationShared::Builder& builder) {
             panel->setVisible(widget->checkbox->isChecked());
             connect(widget->checkbox, &QCheckBox::toggled, panel, &QWidget::setVisible);
             hold_graphics.emplace(setting->Id(), group);
+        } else if (setting->Id() == Settings::values.nvidia_dlss_nr.Id()) {
+            nvidia_dlss_nr_checkbox = widget->checkbox;
+            hold_graphics.emplace(setting->Id(), widget);
 #endif
         } else if (setting->Id() == Settings::values.frame_gen.Id()) {
             frame_gen_checkbox = widget->checkbox;
@@ -381,6 +395,24 @@ void ConfigureGraphics::Setup(const ConfigurationShared::Builder& builder) {
             }
         }
     }
+
+#ifdef EGLANTINE_STREAMLINE
+    if (nvidia_dlss_nr_checkbox != nullptr) {
+        for (const u32 id : {Settings::values.nvidia_dlss_nr_intensity.Id(),
+                             Settings::values.nvidia_dlss_nr_model.Id(),
+                             Settings::values.nvidia_dlss_nr_preset.Id(),
+                             Settings::values.nvidia_dlss_nr_local_tone.Id(),
+                             Settings::values.nvidia_dlss_nr_local_structure.Id(),
+                             Settings::values.nvidia_dlss_nr_global_tone.Id(),
+                             Settings::values.nvidia_dlss_nr_auto_mask.Id()}) {
+            if (const auto it = hold_graphics.find(id); it != hold_graphics.end()) {
+                it->second->setVisible(nvidia_dlss_nr_checkbox->isChecked());
+                connect(nvidia_dlss_nr_checkbox, &QCheckBox::toggled, it->second,
+                        &QWidget::setVisible);
+            }
+        }
+    }
+#endif
 
     for (auto widget : hold_api) {
         api_grid_layout->addWidget(widget);
