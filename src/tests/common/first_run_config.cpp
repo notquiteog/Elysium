@@ -13,8 +13,8 @@ namespace {
 
 class FileConfig final : public Config {
 public:
-    explicit FileConfig(const std::string& name, ConfigType type = ConfigType::GlobalConfig)
-        : Config{type} {
+    explicit FileConfig(const std::string& name, ConfigType type_ = ConfigType::GlobalConfig)
+        : Config{type_} {
         Initialize(name);
     }
 
