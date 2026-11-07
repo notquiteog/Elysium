@@ -17,7 +17,7 @@ concurrency:
 jobs:
   linux-gcc:
     name: Linux GCC 13 production build and tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -49,7 +49,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06
         with:
-          version: "6.8.3"
+          version: "6.8.6"
           host: linux
           target: desktop
           arch: linux_gcc_64
