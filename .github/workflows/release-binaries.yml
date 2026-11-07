@@ -187,9 +187,41 @@ jobs:
           set -euo pipefail
           test -s eglantine.profdata
 
+      # ilammy/msvc-dev-cmd is still a node20 action (its master and v1 both say so, last release
+      # 2024-01-01, Node 24 asked for in its issues #94 and #99) and the runners now force those
+      # onto Node 24 with a deprecation warning. All it does is export what vcvars64 sets, so ask
+      # vcvars64 directly: no action, no Node.
       - name: Set up MSVC
         if: matrix.platform == 'windows-x86_64'
-        uses: ilammy/msvc-dev-cmd@v1
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $root = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+          if (-not $root) { throw 'no Visual Studio install with the C++ tools' }
+          $vcvars = Join-Path $root 'VC\Auxiliary\Build\vcvars64.bat'
+          if (-not (Test-Path $vcvars)) { throw "no vcvars64.bat at $vcvars" }
+          Write-Host "using $vcvars"
+          $before = @{}
+          Get-ChildItem env: | ForEach-Object { $before[$_.Name] = $_.Value }
+          $set = cmd /s /c "`"$vcvars`" >nul 2>&1 && set"
+          if ($LASTEXITCODE -ne 0) { throw "vcvars64.bat failed with $LASTEXITCODE" }
+          $exported = 0
+          foreach ($line in $set) {
+            $pair = $line -split '=', 2
+            if ($pair.Length -ne 2) { continue }
+            $name, $value = $pair
+            # GITHUB_ENV is line based, so anything with a newline in it cannot go through it.
+            if ($value -match "[\r\n]") { continue }
+            if ($before[$name] -ne $value) {
+              "$name=$value" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+              ++$exported
+            }
+          }
+          Write-Host "exported $exported variables"
+          if ($exported -eq 0) { throw 'vcvars64.bat changed nothing' }
 
       - name: Install Qt on Windows
         if: matrix.platform == 'windows-x86_64'
