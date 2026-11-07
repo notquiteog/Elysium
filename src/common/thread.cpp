@@ -9,8 +9,11 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <ranges>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "common/adpf.h"
@@ -642,6 +645,118 @@ void SetCurrentThreadToPerformanceCores() {
 #endif
 }
 
+namespace {
+#ifdef __linux__
+
+/// Reads a sysfs file holding one small integer. -1 when it is not there.
+int ReadSysfsInt(const std::string& path) {
+    std::ifstream file{path};
+    int value = -1;
+    return (file >> value) ? value : -1;
+}
+
+/// Adds a sysfs CPU list ("0-11", "0-3,8-11", "6") to `out`.
+void AddCpuList(const std::string& text, cpu_set_t& out) {
+    size_t at = 0;
+    while (at < text.size()) {
+        const size_t comma = text.find(',', at);
+        const std::string part =
+            text.substr(at, comma == std::string::npos ? std::string::npos : comma - at);
+        if (const size_t dash = part.find('-'); !part.empty()) {
+            const int first = std::atoi(part.c_str());
+            const int last =
+                dash == std::string::npos ? first : std::atoi(part.c_str() + dash + 1);
+            for (int cpu = (std::max)(first, 0); cpu <= last && cpu < CPU_SETSIZE; ++cpu) {
+                CPU_SET(cpu, &out);
+            }
+        }
+        if (comma == std::string::npos) {
+            break;
+        }
+        at = comma + 1;
+    }
+}
+
+/// The CPUs of the host's performance cores, or every CPU when it has only one kind. Intel
+/// hybrids name theirs in /sys/devices/cpu_core/cpus; a 13600K reports 0-11 there for its six
+/// P cores and 12-19 in cpu_atom for its eight E cores, while cpu_capacity reads 1024 for all
+/// twenty, so capacity alone cannot tell them apart. ARM big.LITTLE does rank by cpu_capacity.
+cpu_set_t PerformanceCpus(const cpu_set_t& allowed) {
+    cpu_set_t performance;
+    CPU_ZERO(&performance);
+    if (std::ifstream cpu_core{"/sys/devices/cpu_core/cpus"}; cpu_core) {
+        std::string text;
+        if (std::getline(cpu_core, text)) {
+            AddCpuList(text, performance);
+        }
+    }
+    if (CPU_COUNT(&performance) == 0) {
+        int best = -1;
+        for (int cpu = 0; cpu < CPU_SETSIZE; ++cpu) {
+            if (CPU_ISSET(cpu, &allowed)) {
+                best = (std::max)(
+                    best, ReadSysfsInt(fmt::format("/sys/devices/system/cpu/cpu{}/cpu_capacity",
+                                                   cpu)));
+            }
+        }
+        for (int cpu = 0; cpu < CPU_SETSIZE; ++cpu) {
+            if (!CPU_ISSET(cpu, &allowed)) {
+                continue;
+            }
+            const int capacity = ReadSysfsInt(
+                fmt::format("/sys/devices/system/cpu/cpu{}/cpu_capacity", cpu));
+            if (best <= 0 || capacity == best) {
+                CPU_SET(cpu, &performance);
+            }
+        }
+    }
+    CPU_AND(&performance, &performance, &allowed);
+    return performance;
+}
+
+/// One mask per physical performance core, in CPU order, over the CPUs this process may use.
+/// Empty when the topology does not say, so nothing is pinned on a guess.
+std::vector<cpu_set_t> PerformancePhysicalCores() {
+    std::vector<cpu_set_t> result;
+    cpu_set_t allowed;
+    CPU_ZERO(&allowed);
+    if (sched_getaffinity(0, sizeof(allowed), &allowed) != 0) {
+        return result;
+    }
+    const cpu_set_t performance = PerformanceCpus(allowed);
+    // Keyed by (package, core) and kept in CPU order, so CPU 0's core stays first as on Windows.
+    std::vector<std::pair<std::pair<int, int>, cpu_set_t>> by_core;
+    for (int cpu = 0; cpu < CPU_SETSIZE; ++cpu) {
+        if (!CPU_ISSET(cpu, &performance)) {
+            continue;
+        }
+        const std::string topology = fmt::format("/sys/devices/system/cpu/cpu{}/topology/", cpu);
+        const int core = ReadSysfsInt(topology + "core_id");
+        if (core < 0) {
+            return {};
+        }
+        const std::pair<int, int> key{ReadSysfsInt(topology + "physical_package_id"), core};
+        const auto found = std::ranges::find_if(
+            by_core, [&key](const auto& entry) { return entry.first == key; });
+        if (found == by_core.end()) {
+            cpu_set_t mask;
+            CPU_ZERO(&mask);
+            CPU_SET(cpu, &mask);
+            by_core.emplace_back(key, mask);
+        } else {
+            CPU_SET(cpu, &found->second);
+        }
+    }
+    result.reserve(by_core.size());
+    for (const auto& [key, mask] : by_core) {
+        result.push_back(mask);
+    }
+    return result;
+}
+
+#endif
+} // Anonymous namespace
+
 void PinCurrentThread(PinnedRole role) {
 #ifdef _WIN32
     // Off with EDEN_NX2_PIN_THREADS=0. On by default with 6 or more physical cores: the split's
@@ -694,6 +809,40 @@ void PinCurrentThread(PinnedRole role) {
     }
     if (mask != 0) {
         SetThreadAffinityMask(GetCurrentThread(), mask);
+    }
+#elif defined(__linux__)
+    // The same plan as the Windows branch above, which measured the win: the split's front and
+    // back get a physical performance core each and the guest cores take the others, so no SMT
+    // sibling shares the back's core. Off with EDEN_NX2_PIN_THREADS=0.
+    static const char* const setting = std::getenv("EDEN_NX2_PIN_THREADS");
+    if (setting != nullptr && setting[0] == '0') {
+        return;
+    }
+    static const std::vector<cpu_set_t> cores = PerformancePhysicalCores();
+    // CPU 0's core takes most interrupts, so the GPU threads start at the second one.
+    if (cores.size() < (setting != nullptr && setting[0] == '1' ? 4U : 6U)) {
+        return;
+    }
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    switch (role) {
+    case PinnedRole::GpuFront:
+        mask = cores[1];
+        break;
+    case PinnedRole::GpuBack:
+        mask = cores[2];
+        break;
+    case PinnedRole::GuestCore:
+        for (size_t core = 0; core < cores.size(); ++core) {
+            if (core != 1 && core != 2) {
+                CPU_OR(&mask, &mask, &cores[core]);
+            }
+        }
+        break;
+    }
+    if (CPU_COUNT(&mask) > 0 &&
+        pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask) != 0) {
+        LOG_WARNING(Common, "Could not pin this thread: {}", GetLastErrorMsg());
     }
 #endif
 }
