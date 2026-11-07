@@ -1005,6 +1005,7 @@ void HostMemory::HintCold(size_t physical_offset, size_t length,
         madvise(address, length, MADV_PAGEOUT);
 #else
         static_cast<void>(address);
+        static_cast<void>(length);
 #endif
     };
     hint(backing_base + physical_offset);

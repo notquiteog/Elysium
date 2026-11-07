@@ -12,7 +12,11 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <dwmapi.h>
+// Only MSVC takes its library from a pragma; everything else links dwmapi through CMake, and
+// clang makes an unknown pragma an error under -Werror=all.
+#ifdef _MSC_VER
 #pragma comment(lib, "dwmapi.lib")
+#endif
 #endif
 
 namespace Vulkan {
@@ -107,7 +111,9 @@ HostPacer::Clock::time_point HostPacer::Target(Clock::time_point now) {
         VideoCommon::Nx2Perf::g_guest_frame_interval_ns.load(std::memory_order_relaxed);
     const s64 k =
         guest_ns > 0
-            ? (std::max<s64>)(1, static_cast<s64>(std::floor(guest_ns / refresh_ns + 0.02)))
+            ? (std::max<s64>)(
+                  1, static_cast<s64>(
+                         std::floor(static_cast<double>(guest_ns) / refresh_ns + 0.02)))
             : 1;
     auto intended = *vblank + ToNs(static_cast<double>(k) * refresh_ns);
     // A late frame moves the schedule a refresh later for good, and the frames after it then

@@ -632,8 +632,9 @@ void PatchMeshInstructions(std::vector<u32>& code, const EmitContext& ctx) {
             const std::array<u32, 5> emit{(5U << 16) | static_cast<u32>(spv::Op::OpEmitMeshTasksEXT),
                                           tasks[0].value, tasks[1].value, tasks[2].value,
                                           tasks[3].value};
-            code.erase(code.begin() + offset, code.begin() + offset + 7);
-            code.insert(code.begin() + offset, emit.begin(), emit.end());
+            const auto at = static_cast<std::ptrdiff_t>(offset);
+            code.erase(code.begin() + at, code.begin() + at + 7);
+            code.insert(code.begin() + at, emit.begin(), emit.end());
             patched = true;
             offset += emit.size();
             continue;

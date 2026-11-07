@@ -2055,7 +2055,8 @@ void RasterizerVulkan::TickFrame() {
                     if (delta) {
                         const double cpu_ms = static_cast<double>(*delta) / 1e6;
                         roles += fmt::format(" {}_cpu_ms={:.3f} {}_cpu_ms_per_frame={:.3f}",
-                                             name, cpu_ms, name, cpu_ms / frames);
+                                             name, cpu_ms, name,
+                                             cpu_ms / static_cast<double>(frames));
                     } else {
                         roles += fmt::format(" {}={}", name,
                                              snapshot.threads[i].active ? "unavailable" : "inactive");
@@ -2079,8 +2080,9 @@ void RasterizerVulkan::TickFrame() {
                      "zero_direct_per_frame={:.1f} (totals since previous line)",
                      trace_frame, trace_window_frames, trace_draws, trace_skipped, trace_indirect,
                      trace_zero_direct, trace_capture_dropped,
-                     static_cast<double>(trace_draws) / trace_window_frames,
-                     static_cast<double>(trace_zero_direct) / trace_window_frames);
+                     static_cast<double>(trace_draws) / static_cast<double>(trace_window_frames),
+                     static_cast<double>(trace_zero_direct) /
+                         static_cast<double>(trace_window_frames));
             trace_draws = trace_skipped = trace_indirect = trace_zero_direct = 0;
             trace_window_frames = 0;
             trace_capture_dropped = trace_failure_details = 0;

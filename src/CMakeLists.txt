@@ -190,7 +190,9 @@ else()
     if (CXX_CLANG OR CXX_ICC OR CXX_APPLE) # Clang, AppleClang, or Intel C++
         if (NOT MSVC)
             add_compile_options(
-                $<$<COMPILE_LANGUAGE:C,CXX>:-Wshadow-uncaptured-local>
+                # [x = std::move(x)] is how a local is moved into a lambda, and this warns on
+                # every one of them; the shadowing is the point and -Wshadow still covers the rest.
+                $<$<COMPILE_LANGUAGE:C,CXX>:-Wno-shadow-uncaptured-local>
                 $<$<COMPILE_LANGUAGE:C,CXX>:-Wimplicit-fallthrough>
                 $<$<COMPILE_LANGUAGE:C,CXX>:-Wtype-limits>)
         endif()

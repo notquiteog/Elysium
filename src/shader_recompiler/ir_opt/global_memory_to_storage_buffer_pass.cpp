@@ -695,8 +695,10 @@ struct TrackingConditions {
                     for (size_t arg = 0; arg < 2; ++arg) {
                         const auto mask = extract->Arg(arg).Resolve();
                         if (mask.IsImmediate() && std::has_single_bit(mask.U32())) {
-                            if (auto result = Bit(extract->Arg(1 - arg),
-                                                  std::countr_zero(mask.U32()), depth - 1)) {
+                            if (auto result =
+                                    Bit(extract->Arg(1 - arg),
+                                        static_cast<u32>(std::countr_zero(mask.U32())),
+                                        depth - 1)) {
                                 result->second = result->second != is_zero;
                                 return *result;
                             }

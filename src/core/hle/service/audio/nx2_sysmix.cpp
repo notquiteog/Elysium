@@ -193,8 +193,8 @@ Result SysmixOutput::Open(u32 sample_type, u32 channels, u32 rate, u32 frames, u
     R_TRY(ValidateRegion(*p.process, p.buffer, p.size, p.creation_flags, p.input_stream));
     const u64 slots = u64{frames} + 1;
     const auto format = static_cast<AudioCore::SampleFormat>(sample_type);
-    const u32 frame_bytes =
-        channels * (format == AudioCore::SampleFormat::PcmInt16 ? sizeof(s16) : sizeof(f32));
+    const u32 frame_bytes = static_cast<u32>(
+        channels * (format == AudioCore::SampleFormat::PcmInt16 ? sizeof(s16) : sizeof(f32)));
     const u64 timestamp_bytes = p.input_stream ? 0 : std::min<u64>(16, slots) * 8;
     const u64 minimum = AlignUp(0x1000 + AlignUp(0x40 + timestamp_bytes, 64) +
                                     AlignUp(slots * frame_bytes, 64),

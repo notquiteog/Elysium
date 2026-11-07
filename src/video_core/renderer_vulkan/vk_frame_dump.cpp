@@ -124,8 +124,10 @@ int DecodePixel(PixelFormat format, const u8* pixel, std::array<float, 4>& out) 
     }
     case PixelFormat::A2B10G10R10_UNORM: {
         const u32 value = Load<u32>(pixel, 0);
-        out = {(value & 0x3ff) / 1023.0f, ((value >> 10) & 0x3ff) / 1023.0f,
-               ((value >> 20) & 0x3ff) / 1023.0f, (value >> 30) / 3.0f};
+        out = {static_cast<f32>(value & 0x3ff) / 1023.0f,
+               static_cast<f32>((value >> 10) & 0x3ff) / 1023.0f,
+               static_cast<f32>((value >> 20) & 0x3ff) / 1023.0f,
+               static_cast<f32>(value >> 30) / 3.0f};
         return 4;
     }
     default:

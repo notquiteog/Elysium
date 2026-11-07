@@ -48,7 +48,7 @@ template <typename T>
 [[nodiscard]] constexpr bool IsAligned(T value, size_t alignment) noexcept {
     using U = typename std::make_unsigned_t<T>;
     const U mask = U(alignment - 1);
-    return (value & mask) == 0;
+    return (static_cast<U>(value) & mask) == 0;
 }
 
 template <typename T, typename U>

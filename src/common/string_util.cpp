@@ -115,6 +115,18 @@ std::string ReplaceAll(std::string result, const std::string& src, const std::st
     return result;
 }
 
+// std::wstring_convert and std::codecvt_utf8* have been deprecated since C++17 and are gone in
+// C++26, so these three will have to be written out by hand before then. Not here: they throw
+// std::range_error on malformed input, which their callers across the emulator may well lean on,
+// and swapping in replacement characters instead is a change of behaviour, not a warning fix.
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 std::string UTF16ToUTF8(std::u16string_view input) {
     std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
     return convert.to_bytes(input.data(), input.data() + input.size());
@@ -129,6 +141,12 @@ std::u32string UTF8ToUTF32(std::string_view input) {
     std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> convert;
     return convert.from_bytes(input.data(), input.data() + input.size());
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 #ifdef _WIN32
 static std::wstring CPToUTF16(u32 code_page, std::string_view input) {
