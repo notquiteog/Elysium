@@ -75,6 +75,12 @@ struct StorageInfo {
     /// instructions (the IR does not change while storage buffers are collected).
     std::unordered_map<const IR::Inst*, std::optional<StorageBufferAddr>> biased_tracks;
     std::unordered_map<const IR::Inst*, std::optional<StorageBufferAddr>> unbiased_tracks;
+    /// Instructions from which a search with (or without) the bias cannot succeed. Without this
+    /// each search from a new address walked again everything the failed searches had walked:
+    /// 725 failing biased searches of ~5,600 instructions each in a 28,000 instruction compute
+    /// shader. One set per bias, because the bias is part of the predicate.
+    std::unordered_set<const IR::Inst*> biased_exhausted;
+    std::unordered_set<const IR::Inst*> unbiased_exhausted;
     std::unordered_map<const IR::Inst*, small_vector<StorageBufferAddr, 4>> native_candidates;
     /// Native accesses whose candidates include slots of a dynamically indexed pointer array.
     std::unordered_set<const IR::Inst*> native_dynamic;
@@ -399,7 +405,8 @@ std::optional<LowAddrInfo> TrackLowAddress(IR::Inst* inst) {
 }
 
 /// Tries to track the storage buffer address used by a global memory instruction
-std::optional<StorageBufferAddr> Track(const IR::Value& value, const Bias* bias) {
+std::optional<StorageBufferAddr> Track(const IR::Value& value, const Bias* bias,
+                                       std::unordered_set<const IR::Inst*>& exhausted) {
     const auto pred{[bias](const IR::Inst* inst) -> std::optional<StorageBufferAddr> {
         if (inst->GetOpcode() != IR::Opcode::GetCbufU32 &&
             inst->GetOpcode() != IR::Opcode::GetCbufU32x2) {
@@ -440,7 +447,9 @@ std::optional<StorageBufferAddr> Track(const IR::Value& value, const Bias* bias)
         }
         return operand;
     };
-    return BreadthFirstSearch(value, pred, stop_at_memory);
+    // Both searches share stop_at_memory, and each bias has its own exhausted set, so the
+    // (pred, resolve) pairing BreadthFirstSearchPruned requires holds.
+    return BreadthFirstSearchPruned(value, pred, exhausted, stop_at_memory);
 }
 
 /// Finds the one constant buffer word added directly into the low address, which is the base
@@ -1434,15 +1443,15 @@ void CollectStorageBuffers(IR::Block& block, IR::Inst& inst, StorageInfo& info, 
         }
         storage_buffer = paired_pointer;
     }
-    const auto cached_track = [&](const Bias* bias, auto& cache) {
+    const auto cached_track = [&](const Bias* bias, auto& cache, auto& exhausted) {
         if (low_addr.IsImmediate()) {
-            return Track(low_addr, bias);
+            return Track(low_addr, bias, exhausted);
         }
         const IR::Inst* const start{low_addr.InstRecursive()};
         if (const auto it = cache.find(start); it != cache.end()) {
             return it->second;
         }
-        const std::optional<StorageBufferAddr> result{Track(low_addr, bias)};
+        const std::optional<StorageBufferAddr> result{Track(low_addr, bias, exhausted)};
         cache.emplace(start, result);
         return result;
     };
@@ -1453,11 +1462,11 @@ void CollectStorageBuffers(IR::Block& block, IR::Inst& inst, StorageInfo& info, 
         storage_buffer = TrackAddend(low_addr);
     }
     if (!storage_buffer) {
-        storage_buffer = cached_track(&nvn_bias, info.biased_tracks);
+        storage_buffer = cached_track(&nvn_bias, info.biased_tracks, info.biased_exhausted);
     }
     if (!storage_buffer) {
         // If it fails, track without a bias
-        storage_buffer = cached_track(nullptr, info.unbiased_tracks);
+        storage_buffer = cached_track(nullptr, info.unbiased_tracks, info.unbiased_exhausted);
         if (!storage_buffer) {
             // If that also fails, use NVN fallbacks
             LOG_WARNING(Shader, "Storage buffer failed to track, using global memory fallbacks");
