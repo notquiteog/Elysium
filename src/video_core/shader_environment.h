@@ -273,6 +273,13 @@ public:
 
     void Dump(u64 pipeline_hash, u64 shader_hash) override;
 
+    /// A digest of everything translation can read here: the code and every answer this
+    /// environment recorded. Two environments with equal digests translate to the same program,
+    /// which is what a translation cache has to key on — the shader hash alone is not enough,
+    /// because constant buffer values, texture types and storage pointer kinds are folded into
+    /// the translated result.
+    [[nodiscard]] u64 ContentHash() const;
+
 private:
     std::vector<u64> code;
     ::Common::unordered_map<u32, Shader::TextureType> texture_types;

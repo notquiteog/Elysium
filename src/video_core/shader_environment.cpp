@@ -1235,6 +1235,62 @@ u32 FileEnvironment::TranslateProgramAddress(u32 address) const {
     return address;
 }
 
+namespace {
+constexpr u64 MixHash(u64 value) {
+    value ^= value >> 33;
+    value *= 0xff51afd7ed558ccdULL;
+    value ^= value >> 33;
+    value *= 0xc4ceb9fe1a85ec53ULL;
+    value ^= value >> 33;
+    return value;
+}
+
+constexpr u64 CombineHash(u64 accumulated, u64 value) {
+    return MixHash(accumulated ^ MixHash(value));
+}
+
+/// The maps below are unordered, so their entries are combined commutatively: addition of mixed
+/// per-entry hashes, which does not depend on the order they are walked in.
+template <typename Map, typename Entry>
+u64 HashUnordered(const Map& map, Entry entry_hash) {
+    u64 total = MixHash(map.size());
+    for (const auto& pair : map) {
+        total += MixHash(entry_hash(pair));
+    }
+    return total;
+}
+} // Anonymous namespace
+
+u64 FileEnvironment::ContentHash() const {
+    u64 hash = MixHash(code.size());
+    for (const u64 word : code) {
+        hash = CombineHash(hash, word);
+    }
+    hash = CombineHash(hash, HashUnordered(texture_types, [](const auto& pair) {
+                           return CombineHash(pair.first, static_cast<u64>(pair.second));
+                       }));
+    hash = CombineHash(hash, HashUnordered(texture_pixel_formats, [](const auto& pair) {
+                           return CombineHash(pair.first, static_cast<u64>(pair.second));
+                       }));
+    hash = CombineHash(hash, HashUnordered(cbuf_values, [](const auto& pair) {
+                           return CombineHash(pair.first, pair.second);
+                       }));
+    hash = CombineHash(hash, HashUnordered(storage_pointer_types, [](const auto& pair) {
+                           return CombineHash(pair.first, static_cast<u64>(pair.second));
+                       }));
+    hash = CombineHash(hash, HashUnordered(cbuf_replacements, [](const auto& pair) {
+                           return CombineHash(pair.first, static_cast<u64>(pair.second));
+                       }));
+    for (const u32 size : workgroup_size) {
+        hash = CombineHash(hash, size);
+    }
+    for (const u32 value : {local_memory_size, shared_memory_size, texture_bound, read_lowest,
+                            read_highest, initial_offset, viewport_transform_state}) {
+        hash = CombineHash(hash, value);
+    }
+    return hash;
+}
+
 bool FileEnvironment::IsNativeProgram() const {
     return Shader::Ampere::HasNativeAddressMap(code);
 }

@@ -21,6 +21,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
@@ -603,6 +604,79 @@ int main(int argc, char** argv) {
     fmt::print("{} pipelines ({} graphics, {} compute), {} programs, scale {}x, {} runs\n",
                pipelines.size(), pipelines.size() - num_compute, num_compute, num_programs, scale,
                repeat);
+
+    // How much of the translation is for a program set this run has already translated. The
+    // expensive passes depend on the programs, not on the pipeline state, so pipelines sharing a
+    // program set could share their translation.
+    {
+        std::map<std::vector<u64>, size_t> by_programs;
+        std::map<u64, size_t> by_program;
+        for (const Pipeline& pipeline : pipelines) {
+            std::vector<u64> key;
+            if (pipeline.is_compute) {
+                key.push_back(pipeline.compute_key.unique_hash);
+            } else {
+                for (const u64 hash : pipeline.graphics_key.unique_hashes) {
+                    if (hash != 0) {
+                        key.push_back(hash);
+                    }
+                }
+            }
+            ++by_programs[key];
+            for (const u64 hash : key) {
+                ++by_program[hash];
+            }
+        }
+        size_t repeated_sets{};
+        for (const auto& [key, count] : by_programs) {
+            repeated_sets += count - 1;
+        }
+        size_t repeated_programs{};
+        for (const auto& [hash, count] : by_program) {
+            repeated_programs += count - 1;
+        }
+        fmt::print("program sets: {} distinct of {} pipelines ({} repeats, {:.1f}%)\n",
+                   by_programs.size(), pipelines.size(), repeated_sets,
+                   100.0 * static_cast<double>(repeated_sets) /
+                       static_cast<double>(pipelines.size()));
+        fmt::print("programs: {} distinct of {} ({} repeats, {:.1f}%)\n", by_program.size(),
+                   num_programs, repeated_programs,
+                   100.0 * static_cast<double>(repeated_programs) /
+                       static_cast<double>(num_programs));
+
+        // The key a translation cache would actually need: the shader hash alone is not enough,
+        // because the environment's recorded answers are folded into the translated program.
+        std::map<std::pair<u64, u64>, size_t> by_content;
+        size_t total_envs{};
+        for (const Pipeline& pipeline : pipelines) {
+            const auto& hashes = pipeline.graphics_key.unique_hashes;
+            size_t env_index{};
+            for (size_t stage = 0; stage < hashes.size(); ++stage) {
+                const u64 hash =
+                    pipeline.is_compute ? pipeline.compute_key.unique_hash : hashes[stage];
+                if (!pipeline.is_compute && hash == 0) {
+                    continue;
+                }
+                if (env_index >= pipeline.envs.size()) {
+                    break;
+                }
+                ++by_content[{hash, pipeline.envs[env_index].ContentHash()}];
+                ++total_envs;
+                ++env_index;
+                if (pipeline.is_compute) {
+                    break;
+                }
+            }
+        }
+        size_t content_repeats{};
+        for (const auto& [key, count] : by_content) {
+            content_repeats += count - 1;
+        }
+        fmt::print("hash+answers: {} distinct of {} ({} would hit a cache, {:.1f}%)\n",
+                   by_content.size(), total_envs, content_repeats,
+                   100.0 * static_cast<double>(content_repeats) /
+                       static_cast<double>(total_envs == 0 ? 1 : total_envs));
+    }
 
     const Shader::Profile profile{MakeProfile()};
     const Shader::HostTranslateInfo host_info{MakeHostInfo()};
