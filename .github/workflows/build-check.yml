@@ -33,7 +33,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            autoconf gcc-13 g++-13 git glslang-tools libglu1-mesa-dev \
+            autoconf catch2 gcc-13 g++-13 git glslang-tools libglu1-mesa-dev \
             libpulse-dev libtool libudev-dev libxkbcommon-x11-0 \
             mesa-common-dev nasm ninja-build qt6-base-private-dev \
             qt6-charts-dev qt6-tools-dev libavfilter-dev libavcodec-dev \
