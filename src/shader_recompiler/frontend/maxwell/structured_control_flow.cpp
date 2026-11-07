@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include "common/container/unordered_map.h"
 #include <utility>
@@ -23,6 +24,7 @@
 #include "shader_recompiler/frontend/maxwell/translate/translate.h"
 #include "shader_recompiler/host_translate_info.h"
 #include "shader_recompiler/object_pool.h"
+#include "shader_recompiler/pass_timer.h"
 
 namespace Shader::Maxwell {
 namespace {
@@ -1023,10 +1025,15 @@ IR::AbstractSyntaxList BuildASL(ObjectPool<IR::Inst>& inst_pool, ObjectPool<IR::
                                 const HostTranslateInfo& host_info) {
     ObjectPool<Statement> stmt_pool{64};
     const Stage stage{env.ShaderStage()};
+    std::optional<PassTimer::Scope> timer;
+    timer.emplace(PassTimer::Pass::GotoPass);
     GotoPass goto_pass{cfg, stmt_pool, stage == Stage::Task || stage == Stage::Mesh};
     Statement& root{goto_pass.RootStatement()};
     IR::AbstractSyntaxList syntax_list;
+    timer.reset();
+    timer.emplace(PassTimer::Pass::TranslatePass);
     TranslatePass{inst_pool, block_pool, stmt_pool, env, root, syntax_list, host_info};
+    timer.reset();
     stmt_pool.ReleaseContents();
     return syntax_list;
 }

@@ -47,6 +47,7 @@
 #include "video_core/renderer_vulkan/fixed_pipeline_state.h"
 #include "video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
+#include "video_core/pipeline_cache_files.h"
 #include "video_core/shader_environment.h"
 #include "video_core/transform_feedback.h"
 
@@ -57,8 +58,9 @@ using Clock = std::chrono::steady_clock;
 using Shader::PassTimer::Pass;
 using Vulkan::FixedPipelineState;
 
-// Must match CACHE_VERSION in vk_pipeline_cache.cpp: LoadPipelines deletes files of another version.
-constexpr u32 CACHE_VERSION = 18;
+// The same constant vk_pipeline_cache.cpp uses, rather than a copy of the number: LoadPipelines
+// deletes files of another version, and a stale literal here would reject every real cache.
+constexpr u32 CACHE_VERSION = VideoCommon::VulkanPipelineCacheVersion;
 
 struct Pipeline {
     bool is_compute{};
@@ -424,7 +426,8 @@ void BuildGraphics(Pools& pools, const Shader::Profile& profile,
             auto program_vb{
                 Shader::Maxwell::TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
             programs[index] =
-                Shader::Maxwell::MergeDualVertexPrograms(programs[0], program_vb, env);
+                Shader::Maxwell::MergeDualVertexPrograms(programs[0], program_vb, env,
+                                                        host_info);
         }
         if (Shader::Optimization::HasBrokenPattern(programs[index])) {
             result.error = "skipped: known broken pattern";
