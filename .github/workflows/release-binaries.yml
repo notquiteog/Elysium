@@ -140,7 +140,7 @@ jobs:
         if: startsWith(matrix.platform, 'linux') && runner.arch != 'ARM64'
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.6"
+          version: "6.8.3"
           host: linux
           target: desktop
           arch: linux_gcc_64
@@ -151,7 +151,7 @@ jobs:
         if: startsWith(matrix.platform, 'linux') && runner.arch == 'ARM64'
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.6"
+          version: "6.8.3"
           host: linux_arm64
           target: desktop
           arch: linux_gcc_arm64
@@ -195,7 +195,7 @@ jobs:
         if: matrix.platform == 'windows-x86_64'
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.6"
+          version: "6.8.3"
           host: windows
           target: desktop
           arch: win64_msvc2022_64
