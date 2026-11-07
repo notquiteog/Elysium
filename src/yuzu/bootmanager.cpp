@@ -61,6 +61,7 @@
 #include "input_common/main.h"
 #include "qt_common/qt_common.h"
 #include "video_core/gpu.h"
+#include "video_core/host_display.h"
 #include "video_core/renderer_base.h"
 #include "yuzu/bootmanager.h"
 #include "yuzu/main_window.h"
@@ -958,6 +959,31 @@ void GRenderWindow::showEvent(QShowEvent* event) {
     // windowHandle() is not initialized until the Window is shown, so we connect it here.
     connect(windowHandle(), &QWindow::screenChanged, this, &GRenderWindow::OnFramebufferSizeChanged,
             Qt::UniqueConnection);
+    connect(windowHandle(), &QWindow::screenChanged, this,
+            &GRenderWindow::PublishDisplayRefreshRate, Qt::UniqueConnection);
+    PublishDisplayRefreshRate();
+}
+
+void GRenderWindow::PublishDisplayRefreshRate() {
+    const QWindow* const handle = windowHandle();
+    QScreen* const screen = handle != nullptr ? handle->screen() : QGuiApplication::primaryScreen();
+
+    // A display can change its rate without the window changing screens, so follow this one's
+    // signal and drop the screen we were following before.
+    disconnect(refresh_rate_connection);
+    if (screen != nullptr) {
+        refresh_rate_connection = connect(screen, &QScreen::refreshRateChanged, this,
+                                          &GRenderWindow::PublishDisplayRefreshRate);
+    }
+
+    const qreal rate = screen != nullptr ? screen->refreshRate() : 0.0;
+    // Below 20 Hz is a report we should not pace to; 0 leaves the host pacer off.
+    const s64 period_ns = rate >= 20.0 ? static_cast<s64>(1.0e9 / rate) : 0;
+    if (period_ns != VideoCore::HostDisplay::RefreshPeriodNs()) {
+        LOG_INFO(Frontend, "Display refresh rate: {:.3f} Hz ({})", rate,
+                 period_ns != 0 ? "pacing available" : "not usable for pacing");
+    }
+    VideoCore::HostDisplay::SetRefreshPeriodNs(period_ns);
 }
 
 bool GRenderWindow::eventFilter(QObject* object, QEvent* event) {

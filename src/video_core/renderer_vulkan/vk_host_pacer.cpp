@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "common/logging.h"
+#include "video_core/host_display.h"
 #include "video_core/nx2_debug_control.h"
 #include "video_core/nx2_perf.h"
 #include "video_core/renderer_vulkan/vk_host_pacer.h"
@@ -56,6 +57,12 @@ std::optional<double> QueryRefreshPeriodNs() {
         return 1e9 / mode.dmDisplayFrequency;
     }
 #endif
+    // Wayland, X11 and macOS: no call to make from here, so take what the frontend reported for
+    // the screen the render window is on. Nominal rather than the compositor's measured period,
+    // so the genlock below tracks it by its own residual instead of trusting it outright.
+    if (const s64 reported = VideoCore::HostDisplay::RefreshPeriodNs(); reported > 0) {
+        return static_cast<double>(reported);
+    }
     return std::nullopt;
 }
 

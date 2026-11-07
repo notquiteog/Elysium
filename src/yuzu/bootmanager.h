@@ -133,6 +133,9 @@ public:
 
 public slots:
     void OnFramebufferSizeChanged();
+    /// Reports the current screen's refresh rate to video_core for the host frame pacer. Qt is
+    /// what knows it on Wayland, X11 and macOS, where video_core has no call of its own.
+    void PublishDisplayRefreshRate();
 
 signals:
     /// Emitted when the window is closed
@@ -190,6 +193,9 @@ private:
 
     QTimer mouse_constrain_timer;
     QTimer mouse_update_timer;
+
+    /// Follows the refresh rate of whichever screen the window is on, rebound when it moves.
+    QMetaObject::Connection refresh_rate_connection;
 
 protected:
     void showEvent(QShowEvent* event) override;
