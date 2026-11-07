@@ -244,6 +244,11 @@ private:
     bool FrameDumpBuffers(bool compute, std::span<const u64> shader_hashes);
     /// EDEN_NX2_PENDING_WRITE_TRACE: logs bound buffer ranges with collected, unapplied CPU writes.
     void TracePendingCpuWrites(bool compute, std::span<const u64> shader_hashes);
+    /// The pipeline the dynamic states are set for: the one PrepareDraw bound, or (outside a
+    /// draw, e.g. DrawTexture) a fresh lookup.
+    GraphicsPipeline* DynamicStatePipeline() {
+        return draw_pipeline != nullptr ? draw_pipeline : pipeline_cache.CurrentGraphicsPipeline();
+    }
 
     Tegra::GPU& gpu;
     Tegra::MaxwellDeviceMemoryManager& device_memory;
@@ -315,6 +320,8 @@ private:
     u32 trace_captures{};
     u32 trace_capture_dropped{};
     u32 trace_failure_details{};
+    /// Set by PrepareDraw while it configures a draw (DynamicStatePipeline).
+    GraphicsPipeline* draw_pipeline = nullptr;
 };
 
 } // namespace Vulkan
