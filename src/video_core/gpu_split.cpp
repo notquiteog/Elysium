@@ -557,6 +557,7 @@ void GpuSplit::BackLoop(std::stop_token stop_token) {
     on_back_thread = true;
     back_running.store(true, std::memory_order_release);
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
+    Common::PinCurrentThread(Common::PinnedRole::GpuBack);
     Common::SetCurrentThreadToPerformanceCores();
     system->RegisterHostThread();
 #ifdef _WIN32
