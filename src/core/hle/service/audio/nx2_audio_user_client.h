@@ -28,6 +28,7 @@ public:
           audio_renderer_manager{std::move(audio_renderer_manager_)} {
         // clang-format off
         static const FunctionInfo functions[] = {
+            {0, &INx2AudioUserClient::GetAudioInManager, "GetAudioInManager"},
             {1, &INx2AudioUserClient::GetAudioOutManager, "GetAudioOutManager (guessed)"},
             {2, &INx2AudioUserClient::GetAudioRendererManager, "GetAudioRendererManager (guessed)"},
         };
@@ -36,6 +37,12 @@ public:
     }
 
 private:
+    void GetAudioInManager(HLERequestContext& ctx) {
+        IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+        rb.Push(ResultSuccess);
+        rb.PushIpcInterface<IAudioInManager>(ctx, system);
+    }
+
     void GetAudioOutManager(HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
         const u32 arg = rp.Pop<u32>();
