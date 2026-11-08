@@ -33,21 +33,17 @@ EDEN_NX2_FENCE_BATCH=1
 # and 36.7 -> 34.0 fps, so the default stands and this is left for per-title testing.
 #EDEN_NX2_TEXTURE_COLD_HINT=0
 
-# BROKEN -- do not enable. Skips the guest-memory upload of a new image the join copies
-# overwrite whole (ported from Frizti's EXP8 bit 2; the clear-binding equivalent is already
-# unconditional here and was worth ~15% of the GPU back thread on Ocarina of Time).
+# Skip the guest-memory upload of a joined image that one of its join copies overwrites whole,
+# and the alias copies before that one: enabled by default. Set to 0 to upload anyway.
 #
-# Tested on Ocarina of Time on a real display: text goes missing from the main menu and Link's
-# shadow intermittently becomes a square, after ~193 skips. So the predicate is wrong in this
-# tree -- it reports an image as fully covered by the join copies when it is not, and the
-# skipped upload leaves UI and shadow textures without their guest content. Unlike the clear
-# path it keeps no safety net (that one stays CpuModified so PrepareImage uploads anyway), so
-# there is nothing to catch it.
-#
-# The idea is still sound and the clear-case equivalent pays well, so the code is kept for
-# whoever fixes the predicate. It fires hard where it fires: ~117/s on Mario Kart World,
-# about a quarter of all uploads.
-#EDEN_NX2_COPY_SKIP=1   # leave off
+# The earlier, looser version of this skip (enabled with =1) corrupted Ocarina of Time on a real
+# display: text went missing from the main menu and Link's shadow intermittently became a square
+# after ~193 skips, because its predicate called an image fully covered when it was not. The
+# switch now turns the skip OFF rather than on, and the predicate is Lichii's
+# CopiesWriteWholeImage, which reads the copies themselves after they are built and sorted: same
+# 2D format, every level and layer from the origin, nothing rescaled, trimmed, sparse, unbacked
+# or block-compressed. If the old symptoms come back, this is the switch to try.
+#EDEN_NX2_COPY_SKIP=0
 # --- Diagnostics (logging only, no behaviour change) ---
 # Front-thread waits per drain site, in wall clock, with how much of each was parked.
 #EDEN_NX2_WAIT_STATS=1
