@@ -379,21 +379,34 @@ struct WaitStats {
     }
     static constexpr size_t num_sites = static_cast<size_t>(DrainSite::Count);
 
-    std::atomic<u64> waits{}, spins_total{}, parks{};
+    std::atomic<u64> waits{}, spins_total{}, parks{}, wait_ns{}, park_ns{};
     std::array<std::atomic<u64>, 6> buckets{}; ///< <64, <256, <1k, <4k, <16k, >=16k spins
-    std::array<std::atomic<u64>, num_sites> site_waits{}, site_spins{};
-    std::atomic<u64> last_report{};
+    std::array<std::atomic<u64>, num_sites> site_waits{}, site_spins{}, site_wait_ns{},
+        site_park_ns{};
+    std::atomic<u64> last_report_ns{};
+    /// Accumulated by Backoff between the start of a wait and its Record, so a park can be
+    /// attributed to the site that was waiting. Only the front thread touches it.
+    u64 pending_park_ns{};
 
     /// Counted where the front actually parks, not from a spin count: the threshold is tunable,
     /// so a bucket boundary cannot stand in for a sleep (reading one as the sleep count made a
     /// lowered threshold report zero sleeps, which is impossible).
-    void NotePark() {
+    void NotePark(u64 ns) {
         parks.fetch_add(1, std::memory_order_relaxed);
+        park_ns.fetch_add(ns, std::memory_order_relaxed);
+        pending_park_ns += ns;
     }
 
-    void Record(u32 spins, DrainSite site) {
+    static u64 Now() {
+        return static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                    std::chrono::steady_clock::now().time_since_epoch())
+                                    .count());
+    }
+
+    void Record(u32 spins, DrainSite site, u64 elapsed_ns) {
         waits.fetch_add(1, std::memory_order_relaxed);
         spins_total.fetch_add(spins, std::memory_order_relaxed);
+        wait_ns.fetch_add(elapsed_ns, std::memory_order_relaxed);
         const size_t bucket = spins < 64      ? 0
                               : spins < 256   ? 1
                               : spins < 1024  ? 2
@@ -404,27 +417,36 @@ struct WaitStats {
         const size_t site_index = (std::min)(static_cast<size_t>(site), num_sites - 1);
         site_waits[site_index].fetch_add(1, std::memory_order_relaxed);
         site_spins[site_index].fetch_add(spins, std::memory_order_relaxed);
+        site_wait_ns[site_index].fetch_add(elapsed_ns, std::memory_order_relaxed);
+        site_park_ns[site_index].fetch_add(pending_park_ns, std::memory_order_relaxed);
+        pending_park_ns = 0;
 
-        const u64 now = static_cast<u64>(
-            std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::steady_clock::now().time_since_epoch())
-                .count());
-        u64 last = last_report.load(std::memory_order_relaxed);
-        if (now - last < 5 || !last_report.compare_exchange_strong(last, now,
-                                                                  std::memory_order_relaxed)) {
+        const u64 now = Now();
+        u64 last = last_report_ns.load(std::memory_order_relaxed);
+        if (last == 0) {
+            last_report_ns.compare_exchange_strong(last, now, std::memory_order_relaxed);
             return;
         }
+        if (now - last < 5'000'000'000ULL ||
+            !last_report_ns.compare_exchange_strong(last, now, std::memory_order_relaxed)) {
+            return;
+        }
+        const double seconds = static_cast<double>(now - last) / 1e9;
         const u64 n = waits.exchange(0, std::memory_order_relaxed);
         const u64 s = spins_total.exchange(0, std::memory_order_relaxed);
         const u64 z = parks.exchange(0, std::memory_order_relaxed);
+        const u64 wns = wait_ns.exchange(0, std::memory_order_relaxed);
+        const u64 pns = park_ns.exchange(0, std::memory_order_relaxed);
         std::array<u64, 6> b{};
         for (size_t i = 0; i < b.size(); ++i) {
             b[i] = buckets[i].exchange(0, std::memory_order_relaxed);
         }
-        std::array<u64, num_sites> sw{}, ss{};
+        std::array<u64, num_sites> sw{}, ss{}, swns{}, spns{};
         for (size_t i = 0; i < num_sites; ++i) {
             sw[i] = site_waits[i].exchange(0, std::memory_order_relaxed);
             ss[i] = site_spins[i].exchange(0, std::memory_order_relaxed);
+            swns[i] = site_wait_ns[i].exchange(0, std::memory_order_relaxed);
+            spns[i] = site_park_ns[i].exchange(0, std::memory_order_relaxed);
         }
         if (n == 0) {
             return;
@@ -435,6 +457,17 @@ struct WaitStats {
                  n, s / n, z, static_cast<double>(z) / static_cast<double>(n), b[0], b[1], b[2],
                  b[3], b[4], b[5]);
 
+        // Wall clock, not spins: a park costs far more than the spinning that precedes it, so a
+        // spin count cannot say what a wait actually costs.
+        LOG_INFO(HW_GPU,
+                 "Nx2Perf front wait time: {:.1f} ms/s waiting, of which {:.1f} ms/s parked "
+                 "({:.1f}% of the wait); mean wait {:.1f} us, mean park {:.1f} us",
+                 static_cast<double>(wns) / 1e6 / seconds,
+                 static_cast<double>(pns) / 1e6 / seconds,
+                 wns == 0 ? 0.0 : 100.0 * static_cast<double>(pns) / static_cast<double>(wns),
+                 n == 0 ? 0.0 : static_cast<double>(wns) / 1e3 / static_cast<double>(n),
+                 z == 0 ? 0.0 : static_cast<double>(pns) / 1e3 / static_cast<double>(z));
+
         // Which site the spinning is actually spent at: the point of the whole measurement, since
         // a threshold can only trade spinning for parking, while a site names the work to fix.
         std::array<size_t, num_sites> order{};
@@ -442,17 +475,20 @@ struct WaitStats {
             order[i] = i;
         }
         std::sort(order.begin(), order.end(),
-                  [&ss](size_t a, size_t c) { return ss[a] > ss[c]; });
+                  [&swns](size_t a, size_t c) { return swns[a] > swns[c]; });
         std::string top;
         for (size_t i = 0; i < num_sites && i < 5; ++i) {
             const size_t k = order[i];
-            if (ss[k] == 0) {
+            if (sw[k] == 0) {
                 break;
             }
-            top += fmt::format("{}{} {:.1f}% of spins ({} waits, mean {})", top.empty() ? "" : " | ",
-                               drain_site_names[k],
-                               100.0 * static_cast<double>(ss[k]) / static_cast<double>(s == 0 ? 1 : s),
-                               sw[k], ss[k] / (sw[k] == 0 ? 1 : sw[k]));
+            top += fmt::format(
+                "{}{} {:.1f} ms/s ({:.1f} parked, {} waits, mean {:.1f} us, mean {} spins)",
+                top.empty() ? "" : " | ", drain_site_names[k],
+                static_cast<double>(swns[k]) / 1e6 / seconds,
+                static_cast<double>(spns[k]) / 1e6 / seconds, sw[k],
+                static_cast<double>(swns[k]) / 1e3 / static_cast<double>(sw[k]),
+                ss[k] / sw[k]);
         }
         if (!top.empty()) {
             LOG_INFO(HW_GPU, "Nx2Perf front wait by site: {}", top);
@@ -471,13 +507,14 @@ bool GpuSplit::WaitFor(u64 target, DrainSite site) {
     wait_target.store(target, std::memory_order_seq_cst);
     Publish();
     const u64 start = Nx2Profile::Enabled() ? Nx2Profile::Ticks() : 0;
+    const u64 wait_began = WaitStats::Enabled() ? WaitStats::Now() : 0;
     for (u32 spins = 0;; ++spins) {
         consumed_cache = consumed.load(std::memory_order_acquire);
         if (consumed_cache >= target) {
             wait_target.store(~u64{0}, std::memory_order_relaxed);
             Nx2Profile::AddDrain(site, start);
             if (WaitStats::Enabled()) [[unlikely]] {
-                g_wait_stats.Record(spins, site);
+                g_wait_stats.Record(spins, site, WaitStats::Now() - wait_began);
             }
             return true;
         }
@@ -515,9 +552,12 @@ void GpuSplit::Backoff(u32 spins, u64 target) {
     const u32 seen = front_wake.load(std::memory_order_seq_cst);
     if (consumed.load(std::memory_order_seq_cst) < target) {
         if (WaitStats::Enabled()) [[unlikely]] {
-            g_wait_stats.NotePark();
+            const u64 park_began = WaitStats::Now();
+            front_wake.wait(seen, std::memory_order_seq_cst);
+            g_wait_stats.NotePark(WaitStats::Now() - park_began);
+        } else {
+            front_wake.wait(seen, std::memory_order_seq_cst);
         }
-        front_wake.wait(seen, std::memory_order_seq_cst);
     }
     front_waiting.store(false, std::memory_order_relaxed);
 }
