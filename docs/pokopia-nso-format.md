@@ -102,6 +102,12 @@ matches that repeat. Ruled out: nibble order, a 254 continuation, min-match 3/5/
 final extension byte, forbidding overlap, capping match length, and every start offset other
 than 0.
 
+The decoder used for all of this is not itself the difference. `EDEN_NSO_DUMP_ALL=1` writes
+every compressed segment, so a title that loads can serve as the control: Ocarina of Time's
+`rtld` segment 0 decodes with plain LZ4, offset bias 0, to an exact match of the header's
+SHA-256, and the same decoder with bias 1 fails on it. So standard LZ4 is handled correctly and
+Pokopia really does need offset - 1.
+
 What is left is one rule that makes the output about 1.5% too long, drifting steadily rather
 than at a boundary (`subsdk0` seg0 is 8,740 over by the end of its own input).
 

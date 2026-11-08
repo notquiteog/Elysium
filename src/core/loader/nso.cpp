@@ -149,13 +149,24 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
                                packed_size) == static_cast<int>(segment_size);
                 };
 
+                // EDEN_NSO_DUMP_SEGMENTS=<dir> writes a segment's compressed bytes, its
+                // header and the header's hash of the decompressed form. With
+                // EDEN_NSO_DUMP_ALL=1 every compressed segment is written, not only the ones
+                // no codec read: a title that loads is the control a candidate decoder for one
+                // that does not is checked against.
+                static const bool dump_all = [] {
+                    const char* const value = std::getenv("EDEN_NSO_DUMP_ALL");
+                    return value != nullptr && value[0] == '1';
+                }();
+
                 const bool decompressed = zbic_first ? (try_zbic() || try_lz4())
                                                      : (try_lz4() || try_zbic());
-                if (!decompressed) {
+                if (!decompressed || dump_all) {
                     std::string head;
                     for (size_t byte = 0; byte < (std::min)(size_t{16}, in.size()); ++byte) {
                         head += fmt::format("{:02x} ", in[byte]);
                     }
+                    if (!decompressed)
                     LOG_ERROR(Loader,
                               "Segment {} of {} decompressed to neither size: header says {} "
                               "bytes from {} at {:#x} of a {} byte file, nso version {}, flags "
