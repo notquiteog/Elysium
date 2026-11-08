@@ -174,6 +174,7 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 // Video Core //
 #include "video_core/gpu.h"
 #include "video_core/pipeline_cache_bundle.h"
+#include "video_core/renderer_vulkan/vk_pipeline_cache_merge.h"
 #include "video_core/renderer_base.h"
 #include "video_core/shader_notify.h"
 
@@ -1466,6 +1467,8 @@ void MainWindow::ConnectWidgetEvents() {
             &MainWindow::OnGameListExportShaderCache);
     connect(game_list, &GameList::ImportShaderCacheRequested, this,
             &MainWindow::OnGameListImportShaderCache);
+    connect(game_list, &GameList::MergeShaderCacheRequested, this,
+            &MainWindow::OnGameListMergeShaderCache);
     connect(game_list, &GameList::RemoveInstalledEntryRequested, this,
             &MainWindow::OnGameListRemoveInstalledEntry);
     connect(game_list, &GameList::RemoveFileRequested, this, &MainWindow::OnGameListRemoveFile);
@@ -2661,6 +2664,38 @@ void MainWindow::OnGameListImportShaderCache(u64 program_id) {
         result.files != 0
             ? tr("Imported the pipeline cache. It is built when the game next starts.")
             : tr("Nothing was imported: this PC already has an equal or larger cache."));
+}
+
+void MainWindow::OnGameListMergeShaderCache(u64 program_id) {
+    // Importing replaces, and only when what arrives is larger, so two partial caches never add
+    // up. Merging keeps both: a cache record holds guest programs and a key rather than host
+    // SPIR-V, so one built elsewhere loads here and the pipelines someone else has already met
+    // can be added to the ones this PC has.
+    const QStringList files = QFileDialog::getOpenFileNames(
+        this, tr("Merge Pipeline Cache"), QString{}, tr("Pipeline cache (*.bin)"));
+    if (files.isEmpty()) {
+        return;
+    }
+    std::vector<std::filesystem::path> inputs;
+    inputs.reserve(static_cast<size_t>(files.size()));
+    for (const QString& file : files) {
+        inputs.emplace_back(file.toStdU16String());
+    }
+    const auto done = Vulkan::MergeIntoTitleCache(
+        Common::FS::GetEdenPath(Common::FS::EdenPath::ShaderDir), program_id, inputs);
+    if (!done.replaced) {
+        QMessageBox::warning(this, tr("Merge Pipeline Cache"),
+                             tr("Your cache was left as it was: %1")
+                                 .arg(QString::fromStdString(done.error)));
+        return;
+    }
+    QMessageBox::information(
+        this, tr("Merge Pipeline Cache"),
+        tr("Merged %1 cache files: %2 pipelines added, %3 already here. They are built when the "
+           "game next starts; the previous cache is kept beside it.")
+            .arg(done.merge.inputs_read)
+            .arg(done.merge.records_written)
+            .arg(done.merge.duplicates));
 }
 
 void MainWindow::OnGameListRemoveFile(u64 program_id, QtCommon::Game::GameListRemoveTarget target,

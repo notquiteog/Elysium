@@ -479,6 +479,7 @@ void GameList::AddGamePopup(QMenu& context_menu, u64 program_id, const std::stri
         context_menu.addAction(tr("Open Transferable Pipeline Cache"));
     QAction* export_shader_cache = context_menu.addAction(tr("Export Pipeline Cache..."));
     QAction* import_shader_cache = context_menu.addAction(tr("Import Pipeline Cache..."));
+    QAction* merge_shader_cache = context_menu.addAction(tr("Merge Pipeline Cache..."));
     QAction* ryujinx = context_menu.addAction(tr("Link to Ryujinx"));
     context_menu.addSeparator();
     QMenu* remove_menu = context_menu.addMenu(tr("Remove"));
@@ -535,6 +536,7 @@ void GameList::AddGamePopup(QMenu& context_menu, u64 program_id, const std::stri
     open_transferable_shader_cache->setVisible(program_id != 0);
     export_shader_cache->setVisible(program_id != 0);
     import_shader_cache->setVisible(program_id != 0);
+    merge_shader_cache->setVisible(program_id != 0);
     remove_update->setVisible(program_id != 0);
     remove_dlc->setVisible(program_id != 0);
     remove_gl_shader_cache->setVisible(program_id != 0);
@@ -563,6 +565,8 @@ void GameList::AddGamePopup(QMenu& context_menu, u64 program_id, const std::stri
             [this, program_id]() { emit ExportShaderCacheRequested(program_id); });
     connect(import_shader_cache, &QAction::triggered, this,
             [this, program_id]() { emit ImportShaderCacheRequested(program_id); });
+    connect(merge_shader_cache, &QAction::triggered, this,
+            [this, program_id]() { emit MergeShaderCacheRequested(program_id); });
     connect(remove_all_content, &QAction::triggered, this, [this, program_id]() {
         emit RemoveInstalledEntryRequested(program_id, QtCommon::Game::InstalledEntryType::Game);
     });

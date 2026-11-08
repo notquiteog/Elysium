@@ -13,6 +13,8 @@
 #include <memory>
 #include <optional>
 #include <span>
+
+#include "video_core/pipeline_cache_merge_result.h"
 #include <type_traits>
 #include "common/container/unordered_map.h"
 #include <vector>
@@ -306,15 +308,6 @@ template <typename Key, typename Envs>
 void SerializePipeline(const Key& key, const Envs& envs, const std::filesystem::path& filename, u32 cache_version) {
     SerializePipeline(std::span(reinterpret_cast<const char*>(&key), sizeof(key)), std::span(envs.data(), envs.size()), filename, cache_version);
 }
-
-/// What a merge did.
-struct PipelineCacheMergeResult {
-    size_t inputs_read{};
-    size_t records_total{};
-    size_t records_written{};
-    size_t duplicates{};
-    size_t rejected_files{};
-};
 
 /// Combines pipeline cache files into one, dropping byte-identical duplicates.
 ///

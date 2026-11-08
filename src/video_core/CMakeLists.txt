@@ -274,6 +274,7 @@ add_library(video_core STATIC
     pipeline_cache_bundle.cpp
     pipeline_cache_bundle.h
     pipeline_cache_files.h
+    pipeline_cache_merge_result.h
     shader_cache.cpp
     shader_cache.h
     shader_environment.cpp

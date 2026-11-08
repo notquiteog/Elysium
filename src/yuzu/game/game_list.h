@@ -104,6 +104,7 @@ signals:
     void OpenTransferableShaderCacheRequested(u64 program_id);
     void ExportShaderCacheRequested(u64 program_id);
     void ImportShaderCacheRequested(u64 program_id);
+    void MergeShaderCacheRequested(u64 program_id);
     void RemoveInstalledEntryRequested(u64 program_id, QtCommon::Game::InstalledEntryType type);
     void RemoveFileRequested(u64 program_id, QtCommon::Game::GameListRemoveTarget target,
                              const std::string& game_path);
