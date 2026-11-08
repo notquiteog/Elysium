@@ -132,27 +132,21 @@ Xvfb was costing about 30% of the frame rate on its own. The GPU sits at 73% and
 So the largest identifiable cost on the thread that gates the frame rate is unswizzling guest
 textures on the CPU, with memcpy behind it.
 
-### Ocarina of Time is not the one with the problem
+### Ocarina of Time has not been profiled in gameplay yet
 
-Profiled the same way on the same desktop, Ocarina of Time runs at **59.5 fps** -- at its limiter,
-not near it -- with the GPU at 70% and 76 W. Its back thread:
+A first attempt looked like good news -- 59.5 fps, GPU at 70% and 76 W, `UnswizzleTexture` only
+11.41% of the back thread against Mario Kart World's 19-21% -- and it was worthless. The run
+never left the title screen, and that title screen is a 1080p video: the log shows
+`nx2:vdecsvc frame 3600 (1920x1080)` and 153 other video lines across the window that was
+sampled. The profile is of a video decoder and a blit, which is why `SwizzleSubrect` is 11.95%
+of it and why holding 60 was easy.
 
-| share | symbol |
-|---|---|
-| 13.88% | `GpuSplit::BackLoop` |
-| 11.95% | `Tegra::Texture::SwizzleSubrect` |
-| 11.41% | `Tegra::Texture::UnswizzleTexture` |
-| 8.42% | libc, memcpy |
-| 5.04% | `pthread_mutex_lock` |
-| 4.30% | `osDevReadReg032` |
+Mario Kart World's attract demo, by contrast, is real 3D. The two were never comparable, and
+nothing should be concluded from the difference between them.
 
-So unswizzling costs it about half what it costs Mario Kart World (11.4% against 19-21%), and
-whatever is left over is enough to hold 60. Ocarina also spends as much again in `SwizzleSubrect`,
-swizzling data back towards the guest, which barely appears in Mario Kart World: the two titles
-load the back thread differently.
-
-That narrows the problem. **Mario Kart World at ~35 fps is the title that needs work**, and
-unswizzling is twice the share of its bottleneck thread than of a title that reaches its target.
+Profiling Ocarina properly needs it in gameplay, which a headless run cannot reach: it has no
+input, so it cannot load a save or leave the menu. The way to do it is to attach `perf` to the
+`GPUBack` thread of a session someone is actually playing.
 
 ### Two ways of not doing it on the back thread, both worse
 
