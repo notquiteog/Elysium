@@ -100,6 +100,48 @@ measured zone, and by definition everything outside the named ones. **Texture up
 ms/s across 417 uploads**, 0.38 ms each, a sixth of the thread for a rate that is small beside
 the 40,323 draws.
 
+## Measured on a real display
+
+Everything below the next heading was measured under Xvfb and carries its cost. These are from
+a normal desktop, `perf` sampling the back thread with no instrumentation effect:
+
+| share of `GPUBack` | symbol |
+|---|---|
+| 19.3 - 21.1% | `Tegra::Texture::UnswizzleTexture` |
+| 9.1 - 14.9% | libc, memcpy |
+| 7.2 - 9.9% | `GpuSplit::BackLoop` |
+| 3.6% | `GpuSplit::Execute` |
+| 3.0 - 3.9% | `osDevReadReg032` (NVIDIA MMIO) |
+
+Mario Kart World runs at **34.9 - 35.7 fps** here, not the 24 to 27 the headless runs showed:
+Xvfb was costing about 30% of the frame rate on its own. The GPU sits at 73% and 60 W.
+
+So the largest identifiable cost on the thread that gates the frame rate is unswizzling guest
+textures on the CPU, with memcpy behind it.
+
+### Two ways of not doing it on the back thread, both worse
+
+**On the GPU.** `gpu_unswizzle_enabled` exists and defaults off. Per upload it measured 0.217 ms
+off against 0.391 ms on -- about 80% dearer for the same work -- so the default is right. Its
+path is narrow anyway: BCn, 3D, one level, one layer, above a size threshold.
+
+**In parallel.** `UnswizzleWorker::TryUnswizzle` splits the work across the thread pool but bails
+when `(pitch & 3) == 0`, which is nearly always. That guard looks like an oversight and is not.
+Forcing the split on:
+
+| | serial | split |
+|---|---|---|
+| `UnswizzleTexture` | 21.14% | 16.18% |
+| memcpy | 9.10% | 14.86% |
+| frame rate | 34.9 fps | 25.9 fps |
+
+The split must first copy the whole input to snapshot it against guest writes, and that copy
+costs more than the parallelism saves: unswizzle time falls, memcpy rises further, and a quarter
+of the frame rate goes. Not kept.
+
+What is left is making `UnswizzleTexture` itself cheaper, or uploading less: 19 of this machine's
+20 cores are idle, but neither way of handing them the work pays for the handover.
+
 ### Xvfb is in every number above
 
 `perf record` on the back thread, sampling from outside with no instrumentation effect, gives a
