@@ -18,6 +18,7 @@
 #include "common/settings_enums.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
+#include "video_core/vsync_mode.h"
 #include "video_core/vulkan_common/vk_enum_string_helper.h"
 #include "video_core/vulkan_common/vulkan_device.h"
 #include "video_core/vulkan_common/vulkan_wrapper.h"
@@ -87,13 +88,7 @@ static VkPresentModeKHR ChooseSwapPresentMode(bool has_imm, bool has_mailbox,
             return mode;
         }
     }();
-    if (setting == Settings::VSyncMode::Immediate && !has_imm) {
-        setting = Settings::VSyncMode::Mailbox;
-    }
-    if ((setting == Settings::VSyncMode::Mailbox && !has_mailbox) ||
-        (setting == Settings::VSyncMode::FifoRelaxed && !has_fifo_relaxed)) {
-        setting = Settings::VSyncMode::Fifo;
-    }
+    setting = VideoCore::ResolveVSyncMode(setting, has_imm, has_mailbox, has_fifo_relaxed);
 
     switch (setting) {
     case Settings::VSyncMode::Immediate:
