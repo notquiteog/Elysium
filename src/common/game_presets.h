@@ -11,6 +11,7 @@ inline constexpr u64 DonkeyKongBananzaProgramId = 0x040074A01BF12000ULL;
 inline constexpr u64 HyruleWarriorsAgeOfImprisonmentProgramId = 0x04003F40232DE000ULL;
 inline constexpr u64 MarioTennisFeverProgramId = 0x0400D4201C6EA000ULL;
 inline constexpr u64 OcarinaOfTimeProgramId = 0x0400486024DEC000ULL;
+inline constexpr u64 KirbyAirRidersProgramId = 0x040077201BE50000ULL;
 
 namespace Detail {
 inline auto SessionSetter(bool global) {
@@ -70,6 +71,15 @@ inline void SetOcarinaOfTimeRecommendedSettings(Values& settings, bool global) {
     Detail::SetFrameGenerationTo60(settings, global);
 }
 
+inline void SetKirbyAirRidersRecommendedSettings(Values& settings, bool global) {
+    Detail::SetSwitch2BaseSettings(settings, global);
+    // It streams in compute pipelines as stages load: one session here built 706 of them on the
+    // GPU thread, averaging 220 ms and peaking at 1074 ms, which held the frame rate at 7 fps
+    // until they were done. The base profile's asynchronous shaders are what stop those builds
+    // blocking the thread that presents.
+    Detail::SetFrameGenerationTo60(settings, global);
+}
+
 inline void SetDonkeyKongBananzaRecommendedSettings(Values& settings, bool global) {
     Detail::SetSwitch2BaseSettings(settings, global);
     const auto session = Detail::SessionSetter(global);
@@ -123,6 +133,11 @@ inline constexpr GamePreset GamePresets[] = {
      "flushing off, FIFO Relaxed VSync, ScaleForce, FXAA, Balanced GPU fences and asynchronous "
      "presentation.",
      SetMarioTennisFeverRecommendedSettings},
+    {KirbyAirRidersProgramId, "Kirby Air Riders",
+     "Vulkan, 1x resolution, GPU Fast, asynchronous shaders so its compute pipelines build off "
+     "the presenting thread, BC3, conservative VRAM, reactive flushing off, FIFO Relaxed VSync, "
+     "ScaleForce, FXAA, and frame generation to 60.",
+     SetKirbyAirRidersRecommendedSettings},
     {OcarinaOfTimeProgramId, "The Legend of Zelda: Ocarina of Time",
      "Vulkan, 1x resolution, GPU Fast, asynchronous shaders, BC3, conservative VRAM, reactive "
      "flushing off, FIFO Relaxed VSync, ScaleForce, FXAA, Balanced GPU fences for the texture "

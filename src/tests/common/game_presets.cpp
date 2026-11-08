@@ -148,7 +148,8 @@ TEST_CASE("Title presets set what the titles need", "[game_presets]") {
 
 TEST_CASE("The titles asked to hold 60 generate frames to reach it", "[game_presets]") {
     for (const u64 program_id : {Settings::MarioKartWorldProgramId,
-                                 Settings::OcarinaOfTimeProgramId}) {
+                                 Settings::OcarinaOfTimeProgramId,
+                                 Settings::KirbyAirRidersProgramId}) {
         CAPTURE(program_id);
         auto settings = std::make_unique<Settings::Values>();
         // Not on before the preset, so these assertions cannot pass by default.
@@ -164,4 +165,17 @@ TEST_CASE("The titles asked to hold 60 generate frames to reach it", "[game_pres
     auto settings = std::make_unique<Settings::Values>();
     REQUIRE(Settings::ApplyGamePreset(*settings, Settings::MarioTennisFeverProgramId, true));
     CHECK_FALSE(settings->frame_gen.GetValue());
+}
+
+TEST_CASE("Kirby Air Riders builds its pipelines off the presenting thread", "[game_presets]") {
+    auto settings = std::make_unique<Settings::Values>();
+    // Off by default, so this cannot pass without the preset having set it.
+    REQUIRE_FALSE(settings->use_asynchronous_shaders.GetDefault());
+    CHECK_FALSE(settings->use_asynchronous_shaders.GetValue());
+    REQUIRE(Settings::ApplyGamePreset(*settings, Settings::KirbyAirRidersProgramId, true));
+    CHECK(settings->use_asynchronous_shaders.GetValue());
+    // Reactive flushing costs more than it buys here, and the disk cache is what makes the
+    // second run through a stage cheap.
+    CHECK_FALSE(settings->use_reactive_flushing.GetValue());
+    CHECK(settings->use_disk_shader_cache.GetValue());
 }
