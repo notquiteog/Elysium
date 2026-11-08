@@ -383,3 +383,29 @@ That is the millisecond.
 Narrowing it the way the releases were narrowed is not available: ranging needs the write's
 address range, and a compute dispatch's output range is not recorded anywhere. It would have to
 be tracked first.
+
+## GPU fence behavior: Balanced cuts the wait and costs frames
+
+Mario Kart World, same build, frame rate averaged over ~1,250 presents from t=45s:
+
+| `gpu_fence_behavior` | frame rate | front wait (two windows) |
+|---|---|---|
+| Default (0) | 33.9 fps | 217.8 / 420.0 ms/s |
+| Balanced (2) | 31.3 fps | 137.1 / 262.0 ms/s |
+
+With Default and `gpu_accuracy` Low, `is_synced` resolves true for fences, so the expectation was
+that Balanced would unblock the thread and pay. It does unblock it -- front wait falls by 38% --
+and the frame rate does not follow; here it was slightly worse.
+
+**This is the control the rest of this document needed.** Balanced is a large, independent
+reduction in front wait that produced no frames, which is what an 11%-busy front thread predicts.
+It also retires a result from two sections up: ranging the semaphore releases cut front wait and
+appeared to raise the frame rate from 27.7 to 37.1 fps in one pair and 31.4 to 33.4 in another.
+Those gains cannot be attributed to the wait reduction when a bigger wait reduction here produced
+none. Single-pair frame rates on this machine vary by more than the effect being claimed, and two
+pairs are still single pairs.
+
+What survives: ranging the releases measurably shrinks the site it targets (`macro dma read` waits
+fall from 717/2246/2385 per window to 612/438/1581, mean spins from ~5,478 to ~3,952, parks down
+17%). Whether that is worth the `CounterReport` hazard is a frame-rate question, and the frame
+rate has not answered it.
