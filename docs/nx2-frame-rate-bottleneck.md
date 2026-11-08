@@ -100,6 +100,19 @@ measured zone, and by definition everything outside the named ones. **Texture up
 ms/s across 417 uploads**, 0.38 ms each, a sixth of the thread for a rate that is small beside
 the 40,323 draws.
 
+## Read the frame rates here with care
+
+Two runs of the *same binary*, same title, same desktop, back to back: **25.7 fps and 35.4 fps**.
+A 38% spread with nothing changed between them.
+
+So a frame rate from one run says almost nothing, and any difference here smaller than about a
+third is not evidence. The shares `perf` reports are steadier, because they are ratios within a
+run rather than a comparison between runs, and the conclusions below lean on those where they
+can. Where only a frame rate is quoted, treat it as an indication.
+
+Anything measured by running twice and comparing needs many more runs than that, or a workload
+that repeats exactly. Neither is true of booting a game and watching its attract demo.
+
 ## Measured on a real display
 
 Everything below the next heading was measured under Xvfb and carries its cost. These are from
@@ -141,6 +154,10 @@ of the frame rate goes. Not kept.
 
 What is left is making `UnswizzleTexture` itself cheaper, or uploading less: 19 of this machine's
 20 cores are idle, but neither way of handing them the work pays for the handover.
+
+The split's frame rates (34.9 against 25.9) sit inside the spread above and would not stand on
+their own. What carries that conclusion is the shares moving the way the mechanism predicts:
+unswizzle time down, memcpy up by more, both within single runs.
 
 ### Xvfb is in every number above
 
@@ -188,10 +205,11 @@ generic method path, with its virtual call and its zone, instead of the speciali
 ships. The zone shares above are of a slower, differently shaped run, and the method cost in
 particular is overstated against what a normal run does.
 
-That also makes `GpuSplit::Execute`'s fast branch impossible to profile where it is: its comment
-says the zones were left off it deliberately, but under a profiled run that branch is not taken
-at all, so adding zones to it records nothing and only costs the unprofiled path. Tried and
-reverted.
+Instrumenting that branch and letting the profiler keep the fast path was tried: "other" stayed
+at ~500 ms/s, so it did not answer the question it was added for, and whether its `Scope` per
+method costs anything could not be measured against the spread above. Reverted. With `perf`
+available there is little reason to carry unmeasurable overhead in the hottest path for a zone
+profiler that `perf` supersedes.
 
 So "other" is not the fast path's method execution. It is genuinely unattributed time on the
 generic path, and finding it needs either a profiler that does not disable what it measures or a
