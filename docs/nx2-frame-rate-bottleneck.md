@@ -132,6 +132,28 @@ Xvfb was costing about 30% of the frame rate on its own. The GPU sits at 73% and
 So the largest identifiable cost on the thread that gates the frame rate is unswizzling guest
 textures on the CPU, with memcpy behind it.
 
+### Ocarina of Time is not the one with the problem
+
+Profiled the same way on the same desktop, Ocarina of Time runs at **59.5 fps** -- at its limiter,
+not near it -- with the GPU at 70% and 76 W. Its back thread:
+
+| share | symbol |
+|---|---|
+| 13.88% | `GpuSplit::BackLoop` |
+| 11.95% | `Tegra::Texture::SwizzleSubrect` |
+| 11.41% | `Tegra::Texture::UnswizzleTexture` |
+| 8.42% | libc, memcpy |
+| 5.04% | `pthread_mutex_lock` |
+| 4.30% | `osDevReadReg032` |
+
+So unswizzling costs it about half what it costs Mario Kart World (11.4% against 19-21%), and
+whatever is left over is enough to hold 60. Ocarina also spends as much again in `SwizzleSubrect`,
+swizzling data back towards the guest, which barely appears in Mario Kart World: the two titles
+load the back thread differently.
+
+That narrows the problem. **Mario Kart World at ~35 fps is the title that needs work**, and
+unswizzling is twice the share of its bottleneck thread than of a title that reaches its target.
+
 ### Two ways of not doing it on the back thread, both worse
 
 **On the GPU.** `gpu_unswizzle_enabled` exists and defaults off. Per upload it measured 0.217 ms
