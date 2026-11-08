@@ -527,7 +527,18 @@ dynamic resolution path degrades over time or whether the tail was simply a heav
 
 **It was the area.** A ten-minute headless run with the patch off, on a scene that does not
 change, holds 58.2 to 60.0 across 43 windows after shader compilation -- two dips (49.6 and 43.3)
-and 60.0 at t=598. Nothing declines. That run was under Xvfb, which costs about 30% of the frame
+and 60.0 at t=598. Nothing declines.
+
+**And that run had no frame generation**, which settles a caveat left hanging above. `present #N`
+counts presented frames, generated ones included, so a "locked 60" with FSR3 enabled could have
+been 30 rendered and doubled. It was not: `elysium-cli` reads `sdl2-config.ini`, where
+`frame_gen=false`, and the run logs no FSR3 mention at all (the GUI session, which has
+`frame_gen=true`, does). So Ocarina of Time **renders** a real 58-60 fps with the patch off, with
+nothing interpolated -- and it does so under Xvfb, whose presentation copy costs about 30% of the
+frame rate. A real display should be no worse.
+
+That makes the Max Resolution patch the whole of the story: the title was never short of the
+hardware, it was being held at full scale by one of our own defaults. That run was under Xvfb, which costs about 30% of the frame
 rate, and a build was competing with it for part of its length; both can only have pushed the
 number down, so holding 60 at the end is a lower bound. The dynamic resolution path is stable
 over time.
