@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "common/assert.h"
+#include "common/cpu_features.h"
 #include "common/settings.h"
 #include "common/settings_enums.h"
 #include "core/core.h"
@@ -250,6 +251,14 @@ struct GPU::Impl {
                      raster_area.start_address, raster_area.end_address,
                      reads.load(std::memory_order_relaxed));
         }
+        // EDEN_NX2_READBACK_STATS=1: what these cost. The wait below blocks the guest CPU
+        // thread that made the read until the GPU thread has invalidated and flushed, so the
+        // count alone does not say whether they matter -- the time does.
+        static const bool stats = [] {
+            const char* const value = std::getenv("EDEN_NX2_READBACK_STATS");
+            return value != nullptr && value[0] == '1';
+        }();
+        const u64 began = stats ? static_cast<u64>(Common::g_wall_clock.GetTimeNS().count()) : 0;
         const u64 fence = RequestSyncOperation([this, raster_area]() {
             // Apply collected guest writes before downloading GPU data over guest memory.
             InvalidateGPUCache();
@@ -257,6 +266,27 @@ struct GPU::Impl {
         });
         gpu_thread.TickGPU(is_async);
         WaitForSyncOperation(fence);
+        if (stats) [[unlikely]] {
+            static std::atomic<u64> stalls{}, stall_ns{}, window{};
+            const u64 ended = static_cast<u64>(Common::g_wall_clock.GetTimeNS().count());
+            stalls.fetch_add(1, std::memory_order_relaxed);
+            stall_ns.fetch_add(ended - began, std::memory_order_relaxed);
+            u64 last = window.load(std::memory_order_relaxed);
+            if (last == 0) {
+                window.compare_exchange_strong(last, ended, std::memory_order_relaxed);
+            } else if (ended - last >= 5'000'000'000ULL &&
+                       window.compare_exchange_strong(last, ended, std::memory_order_relaxed)) {
+                const double seconds = static_cast<double>(ended - last) / 1e9;
+                const u64 n = stalls.exchange(0, std::memory_order_relaxed);
+                const u64 ns = stall_ns.exchange(0, std::memory_order_relaxed);
+                LOG_INFO(HW_GPU,
+                         "Nx2Perf cpu readback: {:.0f}/s stalling the guest CPU {:.1f} ms/s "
+                         "(mean {:.0f} us)",
+                         static_cast<double>(n) / seconds,
+                         static_cast<double>(ns) / 1e6 / seconds,
+                         n == 0 ? 0.0 : static_cast<double>(ns) / 1e3 / static_cast<double>(n));
+            }
+        }
         return raster_area;
     }
 

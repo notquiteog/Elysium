@@ -409,3 +409,55 @@ What survives: ranging the releases measurably shrinks the site it targets (`mac
 fall from 717/2246/2385 per window to 612/438/1581, mean spins from ~5,478 to ~3,952, parks down
 17%). Whether that is worth the `CounterReport` hazard is a frame-rate question, and the frame
 rate has not answered it.
+
+## The guest CPU is blocked 400 ms/s reading GPU-written memory
+
+Everything above this section measured threads with slack. This one does not. With
+`EDEN_NX2_READBACK_STATS=1` on Mario Kart World:
+
+| window | readbacks | guest CPU blocked | mean stall |
+|---|---|---|---|
+| 1 | 96/s | 466.1 ms/s | 4,844 us |
+| 2 | 144/s | 479.9 ms/s | 3,343 us |
+| 3 | 70/s | 330.1 ms/s | 4,707 us |
+
+**A guest CPU thread is blocked for 40% of every second**, in stalls averaging 3 to 5 ms -- a
+quarter of a 16.7 ms frame each. It is the first cost measured here that is both large and on the
+critical path, and it accounts for the guest cores sitting at 0.51 to 0.57 of a core: they are
+not short of work, they are stopped.
+
+Only 57 distinct page ranges are involved, read over and over.
+
+The scheduler, measured in the same runs, is not the problem: **1,526 submits/s, 7,046 render
+passes/s, 132 finishes/s waiting 53.3 ms/s**. The fence batching that won 10-15% in Hyrule
+Warriors (`DeferFlush`, ~22,000 submissions a second there) has nothing left to batch here.
+
+### The split turned a readback into a pipeline drain
+
+`OnCPURead` queues a sync operation, ticks the GPU thread, and blocks the caller on it:
+
+```cpp
+const u64 fence = RequestSyncOperation([this, raster_area]() {
+    InvalidateGPUCache();
+    renderer->ReadRasterizer()->FlushRegion(...);
+});
+gpu_thread.TickGPU(is_async);
+WaitForSyncOperation(fence);   // the guest CPU thread stops here
+```
+
+`TickWork()` drains those requests -- but with the split active, the tick that reaches it is
+itself deferred onto the back thread's ring:
+
+```cpp
+} else if (std::holds_alternative<GPUTickCommand>(next.data)) {
+    split.Defer([gpu = &system.GPU()] { gpu->TickWork(); });
+}
+```
+
+So the guest CPU waits for the back thread to execute **everything already queued** before its
+flush runs. That is the 3 to 5 ms, and it is a consequence of the split rather than of the flush
+itself: the work is ordered behind the whole ring, not behind the writes it actually depends on.
+
+Correctness only requires the flush to follow the writes to *that range*, which is what
+`WaitForMemoryWriters` / `MemoryWriterTarget` already express for the macro DMA reads. Running the
+flush at the range's last write instead of at the end of the queue is the shape of the fix.
