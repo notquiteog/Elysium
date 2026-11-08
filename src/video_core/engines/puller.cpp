@@ -59,6 +59,43 @@ void OnBack(const Func& func) {
     }
 }
 
+/// Like OnBack, for deferred work whose only guest-memory write is [begin, end).
+///
+/// A semaphore release writes its payload to one address, but it is recorded as an unranged write
+/// (NoteMemoryWrite), and an unranged write is the floor of every later macro DMA read's wait:
+/// MemoryWriterTarget starts at last_memory_write_position and the ranged list can only raise it.
+/// So a read of an unrelated range waits for every release queued before it.
+///
+/// EDEN_NX2_RANGED_RELEASES=1 ranges them. Measured on Mario Kart World it cuts the macro DMA
+/// read wait from 203.7 to 129.8 ms per second and deferred waits from 333 to 208 per second.
+///
+/// Off by default, for two reasons rather than one. The time saved became idle rather than
+/// frames -- the front thread was already idle 300 ms/s and went to 372 -- so on this machine it
+/// buys nothing; it is kept because a host whose front thread is the limit would see the
+/// reduction differently. And CounterReport may write reports queued earlier along with this
+/// one, each of which was ranged at its own, earlier position: a reader of one of those ranges
+/// would then wait for a position already passed. That hazard is unproven but unrefuted, and it
+/// would show as rare corruption rather than a crash.
+template <typename Func>
+void OnBackRanged(GPUVAddr begin, GPUVAddr end, const Func& func) {
+    static const bool ranged = [] {
+        const char* const value = std::getenv("EDEN_NX2_RANGED_RELEASES");
+        return value != nullptr && value[0] == '1';
+    }();
+    auto& split = VideoCommon::GpuSplit::Get();
+    if (!split.Active()) {
+        func();
+        return;
+    }
+    split.Defer(func);
+    split.NoteMemoryWrite();
+    if (ranged) {
+        // A report is a payload and optionally a timestamp, written 16-byte granular
+        // (query_cache.h masks its watch address with ~0xf).
+        split.RangeLastWrite(begin, end);
+    }
+}
+
 void DrainBack() {
     VideoCommon::GpuSplit::Get().Drain(VideoCommon::DrainSite::Acquire);
 }
@@ -428,10 +465,11 @@ void Puller::ProcessSemaphoreTriggerMethod(DmaPusher& dma_pusher) {
 void Puller::ProcessSemaphoreRelease(DmaPusher& dma_pusher) {
     const GPUVAddr sequence_address{regs.semaphore_address.SemaphoreAddress()};
     const u32 payload = regs.semaphore_release;
-    OnBack([rasterizer = dma_pusher.rasterizer, sequence_address, payload] {
-        rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload,
-                          VideoCommon::QueryPropertiesFlags::IsAFence, payload, 0);
-    });
+    OnBackRanged(sequence_address, sequence_address + 16,
+                 [rasterizer = dma_pusher.rasterizer, sequence_address, payload] {
+                     rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload,
+                                       VideoCommon::QueryPropertiesFlags::IsAFence, payload, 0);
+                 });
 }
 
 void Puller::ProcessSemaphoreAcquire(DmaPusher& dma_pusher) {
@@ -457,10 +495,11 @@ void Puller::ProcessSemaphoreExecute(DmaPusher& dma_pusher, u32 argument) {
     const u32 payload = regs.reg_array[0x19];
     const u32 operation = argument & 7;
     if (operation == 1) { // RELEASE
-        OnBack([rasterizer = dma_pusher.rasterizer, address, payload] {
-            rasterizer->Query(address, VideoCommon::QueryType::Payload,
-                              VideoCommon::QueryPropertiesFlags::IsAFence, payload, 0);
-        });
+        OnBackRanged(address, address + 16,
+                     [rasterizer = dma_pusher.rasterizer, address, payload] {
+                         rasterizer->Query(address, VideoCommon::QueryType::Payload,
+                                           VideoCommon::QueryPropertiesFlags::IsAFence, payload, 0);
+                     });
         // An acquire it meets while queued needs no drain (from zortos293/Lichii#179).
         if (auto& split = VideoCommon::GpuSplit::Get(); split.Active()) {
             if (const auto device = dma_pusher.memory_manager.GpuToCpuAddress(address)) {

@@ -63,8 +63,16 @@ raise the frame rate. Upstream reached the same place from another direction -- 
 "Revert EXP10 (narrow macro DMA drains): no gain in Ocarina of Time" backs out a different
 narrowing of the same waits.
 
-The experiment is not in the tree. It cannot pay for itself, and a release that writes outside
-the range it declares would be read past, which shows up as rare corruption rather than a crash.
+The experiment is in the tree behind `EDEN_NX2_RANGED_RELEASES=1`, off by default. It is kept
+because the reduction is real and this is one machine: a host whose front thread *is* the limit
+would see that third of a second differently, and nothing here rules that out.
+
+It is off rather than on for a reason worth knowing before anyone turns it on. `CounterReport`
+may write reports queued earlier along with the one being released, and each of those was ranged
+at its own, earlier position; a reader of one of those ranges would then wait for a position the
+back has already passed. The hazard is unproven but unrefuted, and it would show as rare
+corruption rather than a crash. The range itself is sound: a report is a payload and optionally a
+timestamp, written 16-byte granular, which is what `query_cache.h` masks its watch address to.
 
 ## What to look at instead
 
