@@ -34,6 +34,10 @@ struct LaunchParams {
     /// loads on another and players can share the pipelines they have already met.
     std::optional<std::string> merge_shader_cache_output{};
     std::vector<std::string> merge_shader_cache_inputs{};
+    /// --merge-into-title <program id>: merge the --cache-in files into this machine's own cache
+    /// for that title, keeping what it already holds. The usual case: a cache from someone who
+    /// has been where you have not.
+    std::optional<std::string> merge_into_title{};
     // --edit-nup <file.nup>: rewrites default-language metadata in place.
     std::optional<std::string> edit_nup_source{};
     std::optional<std::string> edit_nup_name{};

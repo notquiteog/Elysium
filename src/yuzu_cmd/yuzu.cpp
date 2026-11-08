@@ -23,6 +23,7 @@
 #include <string>
 #include "common/settings_enums.h"
 #include "core/launch_params.h"
+#include "video_core/pipeline_cache_files.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache_merge.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -580,6 +581,64 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
     if (lp.verify_nup_source) {
         return VerifyNup(*lp.verify_nup_source) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
+
+    if (lp.merge_into_title) {
+        if (lp.merge_shader_cache_inputs.empty()) {
+            fmt::print(stderr, "--merge-into-title needs at least one --cache-in\n");
+            return SDL_APP_FAILURE;
+        }
+        u64 title_id{};
+        try {
+            title_id = std::stoull(*lp.merge_into_title, nullptr, 16);
+        } catch (const std::exception&) {
+            fmt::print(stderr, "--merge-into-title wants a hexadecimal program id\n");
+            return SDL_APP_FAILURE;
+        }
+        const auto base_dir = Common::FS::GetEdenPath(Common::FS::EdenPath::ShaderDir) /
+                              fmt::format("{:016x}", title_id);
+        const auto own = VideoCommon::VersionedPipelineCachePath(
+            base_dir, "vulkan", VideoCommon::VulkanPipelineCacheVersion);
+
+        // The merge refuses to write over an input, and rightly: the output is written last, so
+        // doing so would destroy the cache halfway through reading it. Build the union beside it
+        // and move it into place only once it is whole.
+        std::vector<std::filesystem::path> inputs;
+        if (std::filesystem::exists(own)) {
+            inputs.emplace_back(own);
+        }
+        for (const std::string& input : lp.merge_shader_cache_inputs) {
+            inputs.emplace_back(input);
+        }
+        const auto staged = own.string() + ".merging";
+        const auto merged = Vulkan::MergeVulkanPipelineCaches(staged, inputs);
+        fmt::print("Merged {} of {} cache files: {} records, {} written, {} duplicates\n",
+                   merged.inputs_read, inputs.size(), merged.records_total,
+                   merged.records_written, merged.duplicates);
+        if (merged.inputs_read == 0) {
+            std::filesystem::remove(staged);
+            fmt::print(stderr, "Nothing usable to merge; {} left as it was\n", own.string());
+            return SDL_APP_FAILURE;
+        }
+        std::error_code ec;
+        if (std::filesystem::exists(own)) {
+            // A union contains everything it was built from, so a smaller result means something
+            // went wrong and the cache that exists is the better one to keep.
+            if (std::filesystem::file_size(staged, ec) < std::filesystem::file_size(own, ec)) {
+                std::filesystem::remove(staged);
+                fmt::print(stderr, "Merged cache is smaller than the existing one; kept {}\n",
+                           own.string());
+                return SDL_APP_FAILURE;
+            }
+            std::filesystem::rename(own, own.string() + ".before-merge", ec);
+        }
+        std::filesystem::rename(staged, own, ec);
+        if (ec) {
+            fmt::print(stderr, "Could not move the merged cache into place: {}\n", ec.message());
+            return SDL_APP_FAILURE;
+        }
+        fmt::print("Wrote {} (previous kept as {}.before-merge)\n", own.string(), own.string());
+        return SDL_APP_SUCCESS;
     }
 
     if (lp.merge_shader_cache_output) {
