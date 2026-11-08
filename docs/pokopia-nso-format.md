@@ -120,6 +120,22 @@ base 1 came out 572 long, and 2,116 + 572 is 2,688, the number of extended match
 two outputs differ by exactly one byte per extended match by construction, so any target lying
 between them splits that way. It is an identity, not evidence.
 
+What the error is not. The overshoot is 8,636 bytes for `subsdk0` seg0, 36,084 for `sdk` and
+55,356 for `main`, and each is exactly divisible by 4 -- the ARM64 instruction size -- so
+whatever is wrong moves whole instructions. Ruled out by measurement:
+
+- a cap on match length: no cap from 4 to 600 removes exactly the overshoot in any module
+- a token nibble of 0 meaning "no match": there are 112, 658 and 1,948 of those against the
+  2,159, 9,021 and 13,839 four-byte units needed
+- a different base for extended matches (above), and for plain ones
+- any count of a sequence property matching the needed figure: literal length 0, offset 1,
+  overlapping matches, offsets that are multiples of 4, matches that are, long matches, large
+  offsets and unaligned literal runs were all counted and none lands on it
+
+Literal lengths are not where it is. They determine how much input a sequence eats, and the
+decode consumes essentially all of it -- exactly all for `main` -- so the literal side is being
+read correctly and the surplus is in the match lengths alone.
+
 The decoded output is not corrupt anywhere, which is the other thing to know before chasing it:
 over the whole 733,468 bytes no 4 KiB window loses the byte distribution of ARM64 code, and no
 724,832-byte window of it matches the hash. The surplus is interspersed, so some matches copy a
