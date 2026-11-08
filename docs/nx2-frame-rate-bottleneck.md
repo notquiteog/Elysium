@@ -100,6 +100,43 @@ measured zone, and by definition everything outside the named ones. **Texture up
 ms/s across 417 uploads**, 0.38 ms each, a sixth of the thread for a rate that is small beside
 the 40,323 draws.
 
+## In real gameplay, none of the above is the cost
+
+Everything else in this document was measured on an attract demo or a title screen. `perf` on a
+session someone was actually playing -- Ocarina of Time, past the menus, 14 video-decode lines
+against the title screen's 153 -- says something different:
+
+| share of the process | thread |
+|---|---|
+| ~63% combined | the six emulated `CPUCore_N` threads |
+| 14.58% | `GPUBack` |
+| 14.19% | `GPU` (the front) |
+
+and by symbol:
+
+| share | symbol | thread |
+|---|---|---|
+| 4.80% | `GpuSplit::WaitFor` | GPU (front) |
+| 4.32% | `GpuSplit::Backoff` | GPU (front) |
+| 2.04% | `GpuSplit::BackLoop` | GPUBack |
+
+**`Tegra::Texture::UnswizzleTexture` does not appear at all, not even at 0.05%.** The two
+changes made to it (`f23a948ebb`, `189f0336b7`) were measured against an attract demo, where
+texture streaming dominates. They are real and they help that, but they do not touch what a
+played session spends its time on.
+
+The largest identifiable cost in the whole process is the GPU front thread **spinning**:
+`WaitFor` plus `Backoff` is 9.1%, and `Backoff` spins 16,384 times before it considers sleeping.
+The back thread it waits for has no hotspot of its own -- 14.6% of the process spread thin
+enough that nothing but `BackLoop` clears 2%.
+
+Ocarina of Time in gameplay runs at **43-47 fps**, not the 59.5 this document previously
+recorded. That figure was its title screen, which is a video.
+
+So the shape of the problem in play is: the emulated CPU is the bulk of the work, the GPU front
+thread spends a tenth of the process waiting on the back, and the back is diffusely busy. That
+is a different problem from texture upload, and it is the one worth working on.
+
 ## Read the frame rates here with care
 
 Two runs of the *same binary*, same title, same desktop, back to back: **25.7 fps and 35.4 fps**.
