@@ -95,11 +95,35 @@ It idles **77.5 ms of each second**, against the front thread's 300 to 372. So t
 on the back, the back is busy, and the host GPU is still only 66% at 62 W: the back is not
 feeding it fast enough, and the back is where the frames are going.
 
-Two things stand out. **"Other" is 405 ms/s**, two fifths of the thread, and is by definition
-everything outside the named zones -- there is no finer breakdown of it, and it is larger than
-any measured zone. **Texture upload is 159.5 ms/s across 417 uploads**, 0.38 ms each, which is a
-sixth of the thread for a rate that is small beside the 40,323 draws.
+Two things stand out. **"Other" is 405 ms/s**, two fifths of the thread and larger than any
+measured zone, and by definition everything outside the named ones. **Texture upload is 159.5
+ms/s across 417 uploads**, 0.38 ms each, a sixth of the thread for a rate that is small beside
+the 40,323 draws.
 
-So the next step is not another dependency to narrow. It is to split "other" into zones, since
-nothing can be said about two fifths of the bottleneck thread while it has no name, and to look
-at why an upload costs 0.38 ms.
+### The profiler changes what it measures
+
+Before trusting any of the above too far: `Maxwell3D::InitializeRegisterDefaults` sets
+
+```cpp
+fast_maxwell3d = !record_write_history &&
+                 !g_trace_first_method_writes && !VideoCommon::Nx2Profile::Enabled();
+```
+
+so **turning the profiler on turns the fast Maxwell3D path off**. A profiled run takes the
+generic method path, with its virtual call and its zone, instead of the specialised one that
+ships. The zone shares above are of a slower, differently shaped run, and the method cost in
+particular is overstated against what a normal run does.
+
+That also makes `GpuSplit::Execute`'s fast branch impossible to profile where it is: its comment
+says the zones were left off it deliberately, but under a profiled run that branch is not taken
+at all, so adding zones to it records nothing and only costs the unprofiled path. Tried and
+reverted.
+
+So "other" is not the fast path's method execution. It is genuinely unattributed time on the
+generic path, and finding it needs either a profiler that does not disable what it measures or a
+sampling profile of the back thread from outside.
+
+### Next
+
+Split "other" without changing what runs -- `perf record` on the back thread would do it without
+the `fast_maxwell3d` problem -- and look at why a texture upload costs 0.38 ms.
