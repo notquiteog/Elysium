@@ -74,10 +74,32 @@ back has already passed. The hazard is unproven but unrefuted, and it would show
 corruption rather than a crash. The range itself is sound: a report is a payload and optionally a
 timestamp, written 16-byte granular, which is what `query_cache.h` masks its watch address to.
 
-## What to look at instead
+## The back thread is the one that is busy
 
-`GPUBack` at 71% is the busiest thread, and the front idles waiting for it. The question is what
-the back spends its time on and why the host GPU still sees only 66% at 62 W: whether its
-submissions are too small, too serialised, or waiting on fences of their own. Measuring the back
-the way `Nx2Profile` measures the front is the next step, and there is no zone breakdown for it
-yet.
+`Nx2Profile` does report the back thread, under "GPU back thread per second". Mario Kart World,
+its second accounted in full:
+
+| zone | ms per second | rate |
+|---|---|---|
+| other | 405.4 | |
+| texture upload | 159.5 | 417/s |
+| method | 82.9 | 2,737,295/s |
+| split wait (idle) | 77.5 | 6,170/s |
+| draw | 45.0 | 40,323/s |
+| fill image views | 42.4 | 40,323/s |
+| compute | 32.4 | 3,952/s |
+| bind stage buffers | 31.7 | 85,894/s |
+| update buffers | 22.6 | 40,323/s |
+
+It idles **77.5 ms of each second**, against the front thread's 300 to 372. So the front waits
+on the back, the back is busy, and the host GPU is still only 66% at 62 W: the back is not
+feeding it fast enough, and the back is where the frames are going.
+
+Two things stand out. **"Other" is 405 ms/s**, two fifths of the thread, and is by definition
+everything outside the named zones -- there is no finer breakdown of it, and it is larger than
+any measured zone. **Texture upload is 159.5 ms/s across 417 uploads**, 0.38 ms each, which is a
+sixth of the thread for a rate that is small beside the 40,323 draws.
+
+So the next step is not another dependency to narrow. It is to split "other" into zones, since
+nothing can be said about two fifths of the bottleneck thread while it has no name, and to look
+at why an upload costs 0.38 ms.
