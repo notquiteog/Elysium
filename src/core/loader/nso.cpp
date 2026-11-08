@@ -5,9 +5,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <array>
 #include <cinttypes>
 #include <cstring>
 #include <span>
+#include <string>
 #include <vector>
 
 #include "common/common_funcs.h"
@@ -106,24 +108,59 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
             return a.size < b.size;
         })->size);
         for (std::size_t i = 0; i < nso_header.segments.size(); ++i) {
-            nso_file.Read(compressed_data.data(), nso_header.segments_compressed_size[i], nso_header.segments[i].offset);
+            const size_t read = nso_file.Read(compressed_data.data(),
+                                              nso_header.segments_compressed_size[i],
+                                              nso_header.segments[i].offset);
+            LOG_INFO(Loader,
+                     "NSO {} segment {}: {} bytes at {:#x} -> {} read, decompresses to {}, file "
+                     "{} bytes, version {}, flags {:#x}",
+                     nso_file.GetName(), i, u32{nso_header.segments_compressed_size[i]},
+                     u32{nso_header.segments[i].offset}, read, u32{nso_header.segments[i].size},
+                     nso_file.GetSize(), u32{nso_header.version}, u32{nso_header.flags});
             if (nso_header.IsSegmentCompressed(i)) {
-                if (nso_header.IsZBICCompressed()) {
-                    // ZBIC compression
-                    const int r = Common::Compression::DecompressDataZBIC(
-                        std::span<u8>{decompressed_size}.first(nso_header.segments[i].size),
-                        std::span<const u8>{compressed_data}.first(nso_header.segments_compressed_size[i])
-                    );
-                    ASSERT(r > 0);
-                } else {
-                    // LZ4 compression
-                    int r = Common::Compression::DecompressDataLZ4(
-                        decompressed_size.data(),
-                        nso_header.segments[i].size,
-                        compressed_data.data(),
-                        nso_header.segments_compressed_size[i]
-                    );
-                    ASSERT(r == int(nso_header.segments[i].size));
+                const u32 segment_size = nso_header.segments[i].size;
+                const u32 packed_size = nso_header.segments_compressed_size[i];
+                const std::span<u8> out{std::span<u8>{decompressed_size}.first(segment_size)};
+                const std::span<const u8> in{
+                    std::span<const u8>{compressed_data}.first(packed_size)};
+
+                // ZBIC is zstd, and a zstd frame says so in its first four bytes. The header's
+                // ZBIC flag cannot be relied on alone: Pokémon Pokopia's modules report flags
+                // 0x3f with that bit clear and then fail LZ4 on every segment with a negative
+                // result, because the data is zstd regardless of what the flag says. Trust the
+                // frame, keep the flag as a hint, and try the other codec rather than give up —
+                // so a title that loads today cannot stop loading.
+                static constexpr std::array<u8, 4> ZSTD_MAGIC{0x28, 0xB5, 0x2F, 0xFD};
+                const bool looks_zstd =
+                    packed_size >= ZSTD_MAGIC.size() &&
+                    std::equal(ZSTD_MAGIC.begin(), ZSTD_MAGIC.end(), in.begin());
+                const bool zbic_first = nso_header.IsZBICCompressed() || looks_zstd;
+
+                const auto try_zbic = [&] {
+                    return Common::Compression::DecompressDataZBIC(out, in) ==
+                           static_cast<int>(segment_size);
+                };
+                const auto try_lz4 = [&] {
+                    return Common::Compression::DecompressDataLZ4(
+                               decompressed_size.data(), segment_size, compressed_data.data(),
+                               packed_size) == static_cast<int>(segment_size);
+                };
+
+                const bool decompressed = zbic_first ? (try_zbic() || try_lz4())
+                                                     : (try_lz4() || try_zbic());
+                if (!decompressed) {
+                    std::string head;
+                    for (size_t byte = 0; byte < (std::min)(size_t{16}, in.size()); ++byte) {
+                        head += fmt::format("{:02x} ", in[byte]);
+                    }
+                    LOG_ERROR(Loader,
+                              "Segment {} of {} decompressed to neither size: header says {} "
+                              "bytes from {} at {:#x} of a {} byte file, nso version {}, flags "
+                              "{:#x} (zbic flag {}, zstd frame {}); first bytes {}",
+                              i, nso_file.GetName(), segment_size, packed_size,
+                              u32{nso_header.segments[i].offset}, nso_file.GetSize(),
+                              u32{nso_header.version}, u32{nso_header.flags},
+                              nso_header.IsZBICCompressed(), looks_zstd, head);
                 }
 
                 std::memcpy(
