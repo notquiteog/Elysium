@@ -461,3 +461,32 @@ itself: the work is ordered behind the whole ring, not behind the writes it actu
 Correctness only requires the flush to follow the writes to *that range*, which is what
 `WaitForMemoryWriters` / `MemoryWriterTarget` already express for the macro DMA reads. Running the
 flush at the range's last write instead of at the end of the queue is the shape of the fix.
+
+### Removing the stall entirely does not produce frames
+
+`EDEN_NX2_BUFFER_DOWNLOADS=1` copies GPU-written buffer ranges back at every fence instead of
+waiting for something to ask. It is off by default for Switch 2 titles. Turning it on:
+
+| | readbacks | guest CPU blocked | finishes | frame rate |
+|---|---|---|---|---|
+| off (default) | 74-125/s | 395-486 ms/s | 140/s, 70.0 ms/s | 35.1 fps |
+| on | 0-3/s | **0.1-2.3 ms/s** | 18/s, 22.5 ms/s | 31.7 fps |
+
+The stall is **gone** -- a 99.5% reduction, and the finish waits fall with it. The frame rate does
+not improve; it was slightly worse.
+
+So this is the third large, independent reduction in blocking that bought nothing, after Balanced
+fences (-38% front wait) and ranged releases. Taken together they say what the per-thread cycle
+table said at the top: the front's waiting and the guest CPU's stalling are **consequences of
+waiting for the back thread, not causes of the frame rate**. The back thread is the only actor in
+the system without slack -- about 92% of its wall clock occupied, 0.74 of a core burned -- and
+everything else in this document is downstream of it.
+
+One honest caveat: eager downloads are not a free removal of the stall. They copy (250-330 MB/s
+on title 1), so a real gain could be masked by the copy cost. The clean version of this experiment
+is the ranged flush described above, which shortens the stall without copying anything extra, and
+it has not been run. Until it is, "the readback stall is not the gate" is well supported but not
+proven.
+
+What is no longer in doubt is where to look: the back thread, and what it spends 0.74 of a core
+on.
