@@ -43,6 +43,12 @@ EDEN_NX2_FENCE_BATCH=1
 # CopiesWriteWholeImage, which reads the copies themselves after they are built and sorted: same
 # 2D format, every level and layer from the origin, nothing rescaled, trimmed, sparse, unbacked
 # or block-compressed. If the old symptoms come back, this is the switch to try.
+#
+# Checked on a real display 2026-11-08, Ocarina of Time: 762 skips over a 14-minute session
+# (988 MiB of uploads not made, against 9,975 uploads totalling 13 GiB that still ran), with the
+# main menu text and Link's shadow both correct. The old version had already broken both by ~193
+# skips, so this is well past the point where it showed. In the scene-load window the skip took
+# away more than it let through: 792 MiB skipped against 561 MiB uploaded.
 #EDEN_NX2_COPY_SKIP=0
 
 # Skip the guest-memory upload of a new image made entirely on pages a dropped GPU-written image
@@ -50,6 +56,13 @@ EDEN_NX2_FENCE_BATCH=1
 # Set to 0 to upload anyway. Ocarina of Time's render targets move address from frame to frame, so
 # the cache keeps making new ones (~400 a second in Castle Town) and uploaded ~9 GB of stale bytes
 # every 30 s. Same family as EDEN_NX2_COPY_SKIP above: if textures come out wrong, try both.
+#
+# Unlike the copy skip above, this one is NOT confirmed on a real display: the same session fired
+# it only 13 times for under a MiB, because it needs the collector to drop GPU-written images
+# first and the collector deleted almost nothing in those scenes. It stays on because upstream
+# ships it on and its guards are the tighter pair (Switch 2 only, no dirty layers, nothing sparse
+# or unbacked, every page stale, and not written by the buffer cache since) -- but it is the one
+# to suspect first, and to turn off first, if an upload glitch appears.
 #EDEN_NX2_TC_SKIP_STALE=0
 # --- Diagnostics (logging only, no behaviour change) ---
 # Front-thread waits per drain site, in wall clock, with how much of each was parked.
