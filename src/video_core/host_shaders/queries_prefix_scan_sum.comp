@@ -142,7 +142,9 @@ void main() {
     }
 
     // if we had less queries than our subgroup, just write down the results.
-    if (total_work <= gl_SubgroupSize * LOCAL_RESULTS) { // This condition is constant per dispatch.
+    // accumulation_limit is the last slot's 0-based index, so one subgroup covers it only while
+    // it is below the slots a subgroup spans: at 256 the slot lives in subgroup 1 already.
+    if (total_work < gl_SubgroupSize * LOCAL_RESULTS) { // This condition is constant per dispatch.
         WriteResults(results);
         return;
     }
