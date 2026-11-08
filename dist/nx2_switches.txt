@@ -74,6 +74,11 @@ EDEN_NX2_FENCE_BATCH=1
 # each to build with it, 0.6 s this way).
 #EDEN_NX2_LEAN_SSBO=0
 
+# Drop decoded movie frames the sound has already passed, so a cutscene's picture keeps up with
+# its audio below 60 fps: enabled by default. Set to 0 to hand out every frame, however late
+# (Ocarina of Time's opening ran 30 s behind its audio at 48 fps without this).
+#EDEN_NX2_VDEC_PACE=0
+
 #EDEN_NX2_MME_JIT=0
 #EDEN_NX2_PBFLUSH=0
 #EDEN_NX2_SKIP_SAME=0
