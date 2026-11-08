@@ -16,6 +16,7 @@
 #include "common/common_funcs.h"
 #include "common/fs/path_util.h"
 #include "common/hex_util.h"
+#include "common/game_presets.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/file_sys/patch_manager.h"
@@ -204,6 +205,32 @@ TEST_CASE("Built-in Max Resolution patch is gated on build id and original word"
 
     SECTION("Disabled in Add-Ons skips") {
         Settings::values.disabled_addons[OcarinaTitleId] = {std::string{MaxResolution}};
+        REQUIRE(PatchMain(context, OcarinaBuildId, TbzInstruction) == TbzInstruction);
+    }
+}
+
+TEST_CASE("The Ocarina of Time profile disables the Max Resolution patch", "[patch_manager]") {
+    PatchManagerTestContext context;
+
+    // Measured on a real display in Hyrule Field: a flat ~41 fps with this patch against a
+    // locked 58.9-60.0 without it, because the patch takes the game's "dynamic resolution
+    // disabled" path so the frame rate gives way instead of the resolution. The profile turns it
+    // off by name, which is a link that can break quietly -- a rename, a dropped line -- and the
+    // only symptom would be the frame rate going back.
+    //
+    // Both directions are asserted so this cannot pass by checking nothing: if the profile stops
+    // disabling the patch, the first section still passes and the second fails.
+    SECTION("Without the profile the patch applies") {
+        Settings::values.disabled_addons.erase(OcarinaTitleId);
+        REQUIRE(PatchMain(context, OcarinaBuildId, TbzInstruction) == BranchInstruction);
+    }
+
+    SECTION("With the profile the original instruction survives") {
+        Settings::values.disabled_addons.erase(OcarinaTitleId);
+        Settings::SetOcarinaOfTimeRecommendedSettings(Settings::values, false);
+        const auto& disabled = Settings::values.disabled_addons[OcarinaTitleId];
+        REQUIRE(std::ranges::find(disabled, std::string{Settings::MaxResolutionPatchName}) !=
+                disabled.end());
         REQUIRE(PatchMain(context, OcarinaBuildId, TbzInstruction) == TbzInstruction);
     }
 }

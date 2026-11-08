@@ -13,6 +13,7 @@
 #include "common/assert.h"
 #include "common/hex_util.h"
 #include "common/logging.h"
+#include "common/game_presets.h"
 #include "common/settings.h"
 #ifndef _WIN32
 #include "common/string_util.h"
@@ -100,7 +101,7 @@ constexpr std::array BUILTIN_PATCHES{
     // Ocarina of Time takes its "dynamic resolution disabled" path, so the 3D renders at full scale
     // instead of following the GPU-time controller down to its 480p floor.
     BuiltinPatch{
-        .name = "Max Resolution (built-in)",
+        .name = Settings::MaxResolutionPatchName,
         .title_id = 0x0400486024DEC000,
         .module = "main",
         .build_id = "E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348",

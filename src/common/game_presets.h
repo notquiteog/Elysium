@@ -2,9 +2,19 @@
 
 #pragma once
 
+#include <algorithm>
+#include <string>
+#include <string_view>
+
 #include "common/settings.h"
 
 namespace Settings {
+
+/// The built-in patch that holds Ocarina of Time's 3D at full scale by taking the game's
+/// "dynamic resolution disabled" path. Named here rather than in patch_manager.cpp because the
+/// recommended profile below disables it by name: a rename in one place only would leave the
+/// profile silently doing nothing.
+inline constexpr const char* MaxResolutionPatchName = "Max Resolution (built-in)";
 
 inline constexpr u64 MarioKartWorldProgramId = 0x0400C3F00006E000ULL;
 inline constexpr u64 DonkeyKongBananzaProgramId = 0x040074A01BF12000ULL;
@@ -69,6 +79,19 @@ inline void SetOcarinaOfTimeRecommendedSettings(Values& settings, bool global) {
     // Dynamic FPS patch lets it fall as far as 10, so the generator makes up the difference
     // instead of the game being left short of the display.
     Detail::SetFrameGenerationTo60(settings, global);
+    // The built-in Max Resolution patch works against all of that: it takes the game's
+    // "dynamic resolution disabled" path, so the 3D cannot follow the GPU-time controller down
+    // and the frame rate goes instead. Measured in Hyrule Field on a real display, 7,200 frames
+    // an arm: a flat ~41 fps with the patch against a locked 58.9-60.0 for six minutes without
+    // it, GPU 79% -> 70%. The profile already asks the generator to make up frames this patch
+    // was suppressing, so the two contradicted each other.
+    //
+    // The cost is image quality, since the 3D now scales down under load as it does on hardware.
+    // Re-enable the patch in Properties -> Add-Ons to have it back.
+    auto& disabled = settings.disabled_addons[OcarinaOfTimeProgramId];
+    if (std::ranges::find(disabled, std::string_view{MaxResolutionPatchName}) == disabled.end()) {
+        disabled.emplace_back(MaxResolutionPatchName);
+    }
 }
 
 inline void SetKirbyAirRidersRecommendedSettings(Values& settings, bool global) {
@@ -148,7 +171,9 @@ inline constexpr GamePreset GamePresets[] = {
     {OcarinaOfTimeProgramId, "The Legend of Zelda: Ocarina of Time",
      "Vulkan, 1x resolution, GPU Fast, asynchronous shaders, BC3, conservative VRAM, reactive "
      "flushing off, FIFO Relaxed VSync, ScaleForce, FXAA, Balanced GPU fences for the texture "
-     "and object flickering, and frame generation to 60.",
+     "and object flickering, frame generation to 60, and the built-in Max Resolution patch off "
+     "so the game can trade resolution for frame rate (a flat 41 fps with it, a locked 60 "
+     "without).",
      SetOcarinaOfTimeRecommendedSettings},
 };
 
