@@ -23,6 +23,7 @@
 #include <string>
 #include "common/settings_enums.h"
 #include "core/launch_params.h"
+#include "video_core/renderer_vulkan/vk_pipeline_cache_merge.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
@@ -579,6 +580,28 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
     if (lp.verify_nup_source) {
         return VerifyNup(*lp.verify_nup_source) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
+
+    if (lp.merge_shader_cache_output) {
+        if (lp.merge_shader_cache_inputs.empty()) {
+            fmt::print(stderr, "--merge-shader-cache needs at least one --cache-in\n");
+            return SDL_APP_FAILURE;
+        }
+        std::vector<std::filesystem::path> inputs;
+        inputs.reserve(lp.merge_shader_cache_inputs.size());
+        for (const std::string& input : lp.merge_shader_cache_inputs) {
+            inputs.emplace_back(input);
+        }
+        const auto merged = Vulkan::MergeVulkanPipelineCaches(
+            std::filesystem::path{*lp.merge_shader_cache_output}, inputs);
+        fmt::print("Merged {} of {} cache files: {} records, {} written, {} duplicates\n",
+                   merged.inputs_read, inputs.size(), merged.records_total,
+                   merged.records_written, merged.duplicates);
+        if (merged.rejected_files != 0) {
+            fmt::print("{} file(s) left out: unreadable, or not this cache version\n",
+                       merged.rejected_files);
+        }
+        return merged.inputs_read != 0 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
     if (lp.unpack_nup_source) {
         return UnpackNup(*lp.unpack_nup_source, lp.filepath) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;

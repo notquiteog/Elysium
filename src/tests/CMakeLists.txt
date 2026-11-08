@@ -6,6 +6,7 @@
 
 add_executable(tests
     common/addon_config.cpp
+    video_core/pipeline_cache_merge.cpp
     video_core/vsync_mode.cpp
     video_core/buffer_cache_ports.cpp
     video_core/unswizzle_workers.cpp

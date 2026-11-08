@@ -42,6 +42,8 @@ LaunchParams ParseLaunchParams(Core::System& system, int argc, char *argv[], wch
         {"pack-nup", required_argument, 0, 'N'},
         {"unpack-nup", required_argument, 0, 'U'},
         {"verify-nup", required_argument, 0, 'V'},
+        {"merge-shader-cache", required_argument, 0, 0x120},
+        {"cache-in", required_argument, 0, 0x121},
         {"edit-nup", required_argument, 0, 'E'},
         {"nup-name", required_argument, 0, 0x100},
         {"nup-icon", required_argument, 0, 0x101},
@@ -82,6 +84,12 @@ LaunchParams ParseLaunchParams(Core::System& system, int argc, char *argv[], wch
                 break;
             case 'V':
                 p.verify_nup_source = std::string(optarg);
+                break;
+            case 0x120:
+                p.merge_shader_cache_output = std::string(optarg);
+                break;
+            case 0x121:
+                p.merge_shader_cache_inputs.emplace_back(optarg);
                 break;
             case 'E':
                 p.edit_nup_source = std::string(optarg);

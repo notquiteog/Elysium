@@ -18,6 +18,7 @@
 #include <optional>
 #include <ranges>
 #include <string>
+#include <unordered_set>
 #include <system_error>
 #include <thread>
 #include <utility>
@@ -1426,6 +1427,122 @@ void SerializePipeline(std::span<const char> key, std::span<const GenericEnviron
         }
         LOG_ERROR(Common_Filesystem, "{}", e.what());
     }
+}
+
+PipelineCacheMergeResult MergePipelineCaches(const std::filesystem::path& output,
+                                             std::span<const std::filesystem::path> inputs,
+                                             u32 cache_version, size_t compute_key_size,
+                                             size_t graphics_key_size) {
+    PipelineCacheMergeResult result{};
+    std::error_code ec;
+
+    // Writing over an input would destroy what is being merged, and the output is written only at
+    // the end, so the damage would not even be visible until then.
+    for (const std::filesystem::path& input : inputs) {
+        if (std::filesystem::equivalent(input, output, ec)) {
+            LOG_ERROR(Common_Filesystem, "Refusing to merge {} onto itself",
+                      Common::FS::PathToUTF8String(output));
+            ++result.rejected_files;
+            return result;
+        }
+    }
+
+    // Byte-identical records are the same entry: the same guest programs and the same key
+    // serialize the same way. Anything that differs is kept, since a wrong merge loses a pipeline
+    // while a wrong keep costs only a translation at boot.
+    std::unordered_set<u64> seen;
+    std::vector<char> body;
+
+    for (size_t index = 0; index < inputs.size(); ++index) {
+        const std::filesystem::path& input = inputs[index];
+        std::ifstream header_check(input, std::ios::binary | std::ios::ate);
+        if (!header_check.is_open()) {
+            LOG_WARNING(Common_Filesystem, "Pipeline cache {} could not be opened",
+                        Common::FS::PathToUTF8String(input));
+            ++result.rejected_files;
+            continue;
+        }
+        const auto end = static_cast<std::streamoff>(header_check.tellg());
+        header_check.seekg(0, std::ios::beg);
+        std::array<char, 8> magic{};
+        u32 version{};
+        header_check.read(magic.data(), magic.size())
+            .read(reinterpret_cast<char*>(&version), sizeof(version));
+        if (!header_check || magic != MAGIC_NUMBER || version != cache_version) {
+            LOG_WARNING(Common_Filesystem, "Pipeline cache {} is not version {}",
+                        Common::FS::PathToUTF8String(input), cache_version);
+            ++result.rejected_files;
+            continue;
+        }
+        const auto first_record = static_cast<std::streamoff>(header_check.tellg());
+        header_check.close();
+
+        const auto scratch =
+            std::filesystem::temp_directory_path() / fmt::format("elysium-merge-{}.bin", index);
+        std::filesystem::copy_file(input, scratch,
+                                   std::filesystem::copy_options::overwrite_existing, ec);
+        if (ec) {
+            LOG_WARNING(Common_Filesystem, "Could not copy {} for merging: {}",
+                        Common::FS::PathToUTF8String(input), ec.message());
+            ++result.rejected_files;
+            continue;
+        }
+        ++result.inputs_read;
+
+        // Walk with the loader's own reader, so a file this build would refuse is refused here
+        // too, then lift the bytes in a second pass: seeking inside the callbacks derails it.
+        std::vector<std::streamoff> ends;
+        const auto note_end = [&ends](std::ifstream& stream, size_t key_size) {
+            stream.seekg(static_cast<std::streamoff>(key_size), std::ios::cur);
+            ends.push_back(static_cast<std::streamoff>(stream.tellg()));
+        };
+        LoadPipelines(
+            std::stop_token{}, scratch, cache_version,
+            [&](std::ifstream& stream, FileEnvironment) { note_end(stream, compute_key_size); },
+            [&](std::ifstream& stream, std::vector<FileEnvironment>) {
+                note_end(stream, graphics_key_size);
+            });
+
+        std::ifstream reader(scratch, std::ios::binary);
+        auto start = first_record;
+        for (const std::streamoff record_end : ends) {
+            ++result.records_total;
+            if (record_end <= start || record_end > end) {
+                start = record_end;
+                continue;
+            }
+            const auto size = static_cast<size_t>(record_end - start);
+            std::vector<char> record(size);
+            reader.seekg(start, std::ios::beg);
+            if (!reader.read(record.data(), static_cast<std::streamsize>(size))) {
+                break;
+            }
+            if (seen.insert(Common::CityHash64(record.data(), record.size())).second) {
+                body.insert(body.end(), record.begin(), record.end());
+                ++result.records_written;
+            } else {
+                ++result.duplicates;
+            }
+            start = record_end;
+        }
+        reader.close();
+        std::filesystem::remove(scratch, ec);
+    }
+
+    if (result.inputs_read == 0) {
+        return result;
+    }
+    std::ofstream out(output, std::ios::binary | std::ios::trunc);
+    if (!out.is_open()) {
+        LOG_ERROR(Common_Filesystem, "Could not write merged pipeline cache {}",
+                  Common::FS::PathToUTF8String(output));
+        result.records_written = 0;
+        return result;
+    }
+    out.write(MAGIC_NUMBER.data(), MAGIC_NUMBER.size())
+        .write(reinterpret_cast<const char*>(&cache_version), sizeof(cache_version));
+    out.write(body.data(), static_cast<std::streamsize>(body.size()));
+    return result;
 }
 
 void LoadPipelines(

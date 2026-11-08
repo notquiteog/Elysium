@@ -5,6 +5,7 @@
 
 #include <string>
 #include <optional>
+#include <vector>
 #include "common/common_types.h"
 #include "network/room.h"
 
@@ -28,6 +29,11 @@ struct LaunchParams {
     // --unpack-nup <file.nup> [<out_dir>]: extracts a NUP back into a loose dump.
     std::optional<std::string> unpack_nup_source{};
     std::optional<std::string> verify_nup_source{};
+    /// --merge-shader-cache <out> with one or more --cache-in <file>: combine pipeline caches.
+    /// Records hold guest programs and a key rather than host SPIR-V, so a cache from one machine
+    /// loads on another and players can share the pipelines they have already met.
+    std::optional<std::string> merge_shader_cache_output{};
+    std::vector<std::string> merge_shader_cache_inputs{};
     // --edit-nup <file.nup>: rewrites default-language metadata in place.
     std::optional<std::string> edit_nup_source{};
     std::optional<std::string> edit_nup_name{};

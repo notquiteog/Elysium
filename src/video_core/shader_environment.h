@@ -307,6 +307,30 @@ void SerializePipeline(const Key& key, const Envs& envs, const std::filesystem::
     SerializePipeline(std::span(reinterpret_cast<const char*>(&key), sizeof(key)), std::span(envs.data(), envs.size()), filename, cache_version);
 }
 
+/// What a merge did.
+struct PipelineCacheMergeResult {
+    size_t inputs_read{};
+    size_t records_total{};
+    size_t records_written{};
+    size_t duplicates{};
+    size_t rejected_files{};
+};
+
+/// Combines pipeline cache files into one, dropping byte-identical duplicates.
+///
+/// A record holds the guest programs and a pipeline key, not host SPIR-V -- every entry is
+/// translated again at boot -- so a cache built on one machine loads on another of the same cache
+/// version. That is what makes the pipelines one player has met shareable with players who have
+/// not met them, and what makes merging worth doing rather than replacing.
+///
+/// Reads only copies: LoadPipelines truncates a file it finds a bad record in and renames one
+/// whose header it rejects, so pointing it at a cache someone still has would damage it. The key
+/// that follows each record's environments is backend-defined, so its size is passed in; the walk
+/// has to step over it to find where the next record begins.
+[[nodiscard]] PipelineCacheMergeResult MergePipelineCaches(
+    const std::filesystem::path& output, std::span<const std::filesystem::path> inputs,
+    u32 cache_version, size_t compute_key_size, size_t graphics_key_size);
+
 void LoadPipelines(std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
     Common::UniqueFunction<void, std::ifstream&, FileEnvironment> load_compute,
     Common::UniqueFunction<void, std::ifstream&, std::vector<FileEnvironment>> load_graphics);
