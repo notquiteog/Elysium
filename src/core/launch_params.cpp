@@ -41,6 +41,7 @@ LaunchParams ParseLaunchParams(Core::System& system, int argc, char *argv[], wch
         {"filter", no_argument, 0, 'x'},
         {"pack-nup", required_argument, 0, 'N'},
         {"unpack-nup", required_argument, 0, 'U'},
+        {"verify-nup", required_argument, 0, 'V'},
         {"edit-nup", required_argument, 0, 'E'},
         {"nup-name", required_argument, 0, 0x100},
         {"nup-icon", required_argument, 0, 0x101},
@@ -78,6 +79,9 @@ LaunchParams ParseLaunchParams(Core::System& system, int argc, char *argv[], wch
                 break;
             case 'U':
                 p.unpack_nup_source = std::string(optarg);
+                break;
+            case 'V':
+                p.verify_nup_source = std::string(optarg);
                 break;
             case 'E':
                 p.edit_nup_source = std::string(optarg);
@@ -243,6 +247,8 @@ void ApplyLaunchParams(LaunchParams const& lp) noexcept {
             "-v, --version         Output version information and exit\n"
             "--pack-nup <dump> [<out.nup>]"
             " Pack a loose dump with all its updates and DLC into a NUP file and exit\n"
+            "--verify-nup <file.nup> Check every file in a NUP against the hashes it records "
+            "and exit\n"
             "--unpack-nup <file.nup> [<out_dir>]"
             " Extract a NUP back into a loose dump and exit\n"
             "--edit-nup <file.nup> [--nup-name NAME --nup-icon PATH --nup-version VER"

@@ -44,6 +44,7 @@
 #include "core/file_sys/common_funcs.h"
 #include "core/file_sys/nup_writer.h"
 #include "core/file_sys/registered_cache.h"
+#include "core/file_sys/nup_container.h"
 #include "core/file_sys/vfs/vfs_real.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "core/hle/service/filesystem/filesystem.h"
@@ -383,6 +384,45 @@ static bool PackNup(const std::string& source, const std::string& output) {
 }
 
 // eden-cli --unpack-nup <file.nup> [<out_dir>]; the output defaults to <name>/ next to the NUP.
+/// Checks every file a NUP records against the SHA-256 it recorded for it, and says which ones
+/// do not match. A dump whose modules describe more data than their files hold will fail here.
+static bool VerifyNup(const std::string& source) {
+    const std::filesystem::path archive{std::u8string{source.begin(), source.end()}};
+    FileSys::RealVfsFilesystem vfs;
+    const FileSys::VirtualFile file =
+        vfs.OpenFile(Common::FS::PathToUTF8String(archive), FileSys::OpenMode::Read);
+    if (!file) {
+        fmt::print(stderr, "cannot open {}\n", source);
+        return false;
+    }
+    if (!FileSys::NupContainer::IsNupFile(file)) {
+        fmt::print(stderr, "{} is not a NUP file\n", source);
+        return false;
+    }
+    FileSys::NupContainer container{file};
+    if (container.GetStatus() != Loader::ResultStatus::Success) {
+        fmt::print(stderr, "cannot read {}: status {}\n", source,
+                   static_cast<int>(container.GetStatus()));
+        return false;
+    }
+    auto last = std::chrono::steady_clock::now();
+    const auto result = container.VerifyIntegrity([&](size_t done, size_t total) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last >= std::chrono::seconds(1) || done == total) {
+            last = now;
+            fmt::print(stderr, "\r{} / {} files", done, total);
+        }
+        return true;
+    });
+    fmt::print(stderr, "\n");
+    if (result == Loader::ResultStatus::Success) {
+        fmt::print("{}: every file matches the hashes the NUP records\n", source);
+        return true;
+    }
+    fmt::print(stderr, "{}: integrity check FAILED (see the log for which file)\n", source);
+    return false;
+}
+
 static bool UnpackNup(const std::string& source, const std::string& output) {
     const auto to_path = [](const std::string& utf8) {
         return std::filesystem::path{std::u8string{utf8.begin(), utf8.end()}};
@@ -537,6 +577,9 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
         return PackNup(*lp.pack_nup_source, lp.filepath) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
 
+    if (lp.verify_nup_source) {
+        return VerifyNup(*lp.verify_nup_source) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
     if (lp.unpack_nup_source) {
         return UnpackNup(*lp.unpack_nup_source, lp.filepath) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }

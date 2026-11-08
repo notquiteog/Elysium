@@ -27,6 +27,7 @@ struct LaunchParams {
     std::optional<std::string> pack_nup_source{};
     // --unpack-nup <file.nup> [<out_dir>]: extracts a NUP back into a loose dump.
     std::optional<std::string> unpack_nup_source{};
+    std::optional<std::string> verify_nup_source{};
     // --edit-nup <file.nup>: rewrites default-language metadata in place.
     std::optional<std::string> edit_nup_source{};
     std::optional<std::string> edit_nup_name{};
