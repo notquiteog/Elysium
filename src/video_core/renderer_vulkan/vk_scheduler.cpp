@@ -46,6 +46,23 @@ std::atomic<u64> g_profile_window_start{};
 std::mutex g_profile_end_mutex;
 std::map<std::string, u64> g_profile_ends;
 
+/// EDEN_NX2_SUBMIT_STATS=1: the same submit, render pass and finish counts the zone profiler
+/// collects, but without it. Nx2Profile::Enabled() turns off `fast_maxwell3d`, so anything gated
+/// on it measures a path that does not ship; these counters are plain atomics and can run beside
+/// the real one.
+bool SchedulerStatsEnabled() {
+    static const bool on = [] {
+        const char* const value = std::getenv("EDEN_NX2_SUBMIT_STATS");
+        return value != nullptr && value[0] == '1';
+    }();
+    return on;
+}
+
+/// Either instrument wants the counts kept.
+bool CountingScheduler() {
+    return VideoCommon::Nx2Profile::Enabled() || SchedulerStatsEnabled();
+}
+
 void CountRenderPassEnd(const char* file, u32 line) {
     if (!VideoCommon::Nx2Profile::Enabled()) {
         return;
@@ -254,7 +271,7 @@ void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore,
     }
     // When finishing, we need to wait for the submission to have executed on the device.
     const u64 presubmit_tick = CurrentTick();
-    const bool profile = VideoCommon::Nx2Profile::Enabled();
+    const bool profile = CountingScheduler();
     const u64 start = profile ? VideoCommon::Nx2Profile::Now() : 0;
     SubmitExecution(signal_semaphore, wait_semaphore);
     Wait(presubmit_tick);
@@ -309,7 +326,7 @@ void Scheduler::DispatchWork() {
 
 void Scheduler::BeginRenderPassImpl(const Framebuffer* framebuffer, VkRenderPass renderpass,
                                     const VkClearValue* clear_values, u32 clear_value_count) {
-    if (VideoCommon::Nx2Profile::Enabled()) {
+    if (CountingScheduler()) [[unlikely]] {
         g_profile_renderpasses.fetch_add(1, std::memory_order_relaxed);
     }
     const VkFramebuffer framebuffer_handle = framebuffer->Handle();
@@ -770,7 +787,7 @@ void Scheduler::TraceGpuSubmission() {
 }
 
 u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore) {
-    if (VideoCommon::Nx2Profile::Enabled()) {
+    if (CountingScheduler()) [[unlikely]] {
         g_profile_submits.fetch_add(1, std::memory_order_relaxed);
         ReportSubmitCounts();
     }
