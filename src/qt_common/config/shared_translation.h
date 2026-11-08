@@ -36,6 +36,13 @@ static const std::map<Settings::AntiAliasing, QString> anti_aliasing_texts_map =
 static const std::map<Settings::FrameGenType, QString> frame_gen_type_texts_map = {
     {Settings::FrameGenType::Lsfg, QStringLiteral(QT_TRANSLATE_NOOP("MainWindow", "LSFG"))},
     {Settings::FrameGenType::Fsr3, QStringLiteral(QT_TRANSLATE_NOOP("MainWindow", "Optical Flow"))},
+#ifdef EGLANTINE_STREAMLINE
+    // Without an entry here the combo box has no row for it, so DLSS frame generation could be
+    // set in a config file but never chosen in the UI. Only where Streamline is built: elsewhere
+    // the frame generator skips this type and Streamline's present is not there to do it
+    // instead, so offering it would be offering nothing.
+    {Settings::FrameGenType::Dlss, QStringLiteral(QT_TRANSLATE_NOOP("MainWindow", "DLSS"))},
+#endif
 };
 
 static const std::map<Settings::ScalingFilter, QString> scaling_filter_texts_map = {
