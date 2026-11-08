@@ -530,10 +530,13 @@ void TextureCache<P>::TickFrame() {
                  images_uploaded, uploaded_bytes >> 20, largest_upload >> 20, layer_uploads);
         LOG_INFO(HW_GPU,
                  "Texture cache last 600 frames: stale uploads skipped {} ({} MiB), {} uploaded "
-                 "for buffer-written pages; {} MiB of pages marked stale",
+                 "for buffer-written pages; {} MiB of pages marked stale; join-copy uploads "
+                 "skipped {} ({} MiB)",
                  tc_stale_skips, tc_stale_skip_bytes >> 20, tc_stale_gpu_written,
-                 (stale_pages.Count() << StalePages::PAGE_BITS) >> 20);
+                 (stale_pages.Count() << StalePages::PAGE_BITS) >> 20, tc_copy_skips,
+                 tc_copy_skip_bytes >> 20);
         tc_stale_skips = tc_stale_skip_bytes = tc_stale_gpu_written = 0;
+        tc_copy_skips = tc_copy_skip_bytes = 0;
         images_uploaded = uploaded_bytes = largest_upload = layer_uploads = 0;
         astc_opaque_images = astc_alpha_images = 0;
         std::vector<std::pair<u32, u64>> shapes;
@@ -3251,6 +3254,8 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         runtime.TransitionImageLayout(new_image);
     } else if (copied_whole) {
         // What RefreshContents does, without the upload.
+        ++tc_copy_skips;
+        tc_copy_skip_bytes += new_image.guest_size_bytes;
         new_image.flags &= ~ImageFlagBits::CpuModified;
         if (False(new_image.flags & ImageFlagBits::Tracked)) {
             TrackImage(new_image, new_image_id);
