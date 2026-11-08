@@ -26,6 +26,26 @@ EDEN_NX2_FENCE_BATCH=1
 # Ocarina of Time with =0 (or =2): 30.9 fps against 38.9 unset, same spot and settings.
 #EDEN_NX2_FRAMES_AHEAD=1
 
+# Hint uploaded texture guest memory cold every 600 frames (default on). Frizti measured
+# skipping it worth 30.3 -> 35.1 fps on Ocarina of Time's 1% lows in Hyrule Field, on the
+# grounds that a re-created image faults the memory back in while uploading. Measured here on
+# Mario Kart World it goes the other way: skipping it took minor faults from 2,794/s to 6,829/s
+# and 36.7 -> 34.0 fps, so the default stands and this is left for per-title testing.
+#EDEN_NX2_TEXTURE_COLD_HINT=0
+
+# --- Diagnostics (logging only, no behaviour change) ---
+# Front-thread waits per drain site, in wall clock, with how much of each was parked.
+#EDEN_NX2_WAIT_STATS=1
+# How long the front spins before parking (default 16384). Parks are 0.1 per wait, so this
+# trades spinning for parking and cannot shorten a wait.
+#EDEN_NX2_SPIN_LIMIT=16384
+# Vulkan submits, render passes and finish waits per second, without the zone profiler (which
+# disables fast_maxwell3d and so cannot measure the path that ships).
+#EDEN_NX2_SUBMIT_STATS=1
+# Guest CPU reads of GPU-written memory: how often, and how long they block the guest thread.
+# On Mario Kart World 70-144/s blocking 330-480 ms/s, in stalls of 3-5 ms.
+#EDEN_NX2_READBACK_STATS=1
+
 # --- Workarounds / Debug ---
 # Terrain/indirect drawing fix for Donkey Kong Bananza: enabled by default. Set to 0 only to leave to GPU.
 #EDEN_NX2_RESETFIX=0

@@ -496,8 +496,20 @@ void TextureCache<P>::TickFrame() {
     TickAsyncDecode();
     TickAsyncUnswizzle();
     if (frame_tick % 600 == 0 && !uploaded_ranges.empty()) {
-        for (const auto& [address, size] : uploaded_ranges) {
-            device_memory.HintCold(address, size);
+        // EDEN_NX2_TEXTURE_COLD_HINT=0 skips the sweep. Hinting uploaded guest memory cold frees
+        // it under pressure, but an image created again over it (re-created after eviction, or a
+        // render target at a new size) faults all of it back in while uploading, ~256 faults per
+        // MiB. Frizti measured skipping it worth 30.3 -> 35.1 fps on Ocarina of Time's 1% lows in
+        // Hyrule Field (their EXP8 bit 8), while this tree went the other way and hinted sparse
+        // images too (ca1fac93fb), so it is a switch until measured here.
+        static const bool cold_hint = [] {
+            const char* const value = std::getenv("EDEN_NX2_TEXTURE_COLD_HINT");
+            return value == nullptr || value[0] != '0';
+        }();
+        if (cold_hint) {
+            for (const auto& [address, size] : uploaded_ranges) {
+                device_memory.HintCold(address, size);
+            }
         }
         uploaded_ranges.clear();
     }
