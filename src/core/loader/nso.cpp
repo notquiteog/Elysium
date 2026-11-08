@@ -124,17 +124,18 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
                 const std::span<const u8> in{
                     std::span<const u8>{compressed_data}.first(packed_size)};
 
-                // ZBIC is zstd, and a zstd frame says so in its first four bytes. The header's
-                // ZBIC flag cannot be relied on alone: Pokémon Pokopia's modules report flags
-                // 0x3f with that bit clear and then fail LZ4 on every segment with a negative
-                // result, because the data is zstd regardless of what the flag says. Trust the
-                // frame, keep the flag as a hint, and try the other codec rather than give up —
-                // so a title that loads today cannot stop loading.
-                static constexpr std::array<u8, 4> ZSTD_MAGIC{0x28, 0xB5, 0x2F, 0xFD};
-                const bool looks_zstd =
-                    packed_size >= ZSTD_MAGIC.size() &&
-                    std::equal(ZSTD_MAGIC.begin(), ZSTD_MAGIC.end(), in.begin());
-                const bool zbic_first = nso_header.IsZBICCompressed() || looks_zstd;
+                // A ZBIC frame names itself: with ZSTD_ZBIC_SUPPORT the decoder's magic is
+                // 0x4349425A, the bytes "ZBIC", not zstd's 0x28B52FFD. Asking the decoder
+                // through IsZBIC keeps the two in step; matching zstd's magic here instead
+                // meant a real ZBIC frame failed this test and was only reached by falling
+                // back to it after LZ4.
+                //
+                // The header flag is a hint rather than the answer. Pokémon Pokopia's modules
+                // report flags 0x3f with the ZBIC bit clear, and their segments decode as
+                // none of the three codecs: they begin df/cf 01 00 00 00 followed by two
+                // u32s 52 bytes apart, so they are a fourth format still to be identified.
+                const bool looks_zbic = Common::Compression::IsZBIC(in);
+                const bool zbic_first = nso_header.IsZBICCompressed() || looks_zbic;
 
                 const auto try_zbic = [&] {
                     return Common::Compression::DecompressDataZBIC(out, in) ==
@@ -156,11 +157,11 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
                     LOG_ERROR(Loader,
                               "Segment {} of {} decompressed to neither size: header says {} "
                               "bytes from {} at {:#x} of a {} byte file, nso version {}, flags "
-                              "{:#x} (zbic flag {}, zstd frame {}); first bytes {}",
+                              "{:#x} (zbic flag {}, zbic frame {}); first bytes {}",
                               i, nso_file.GetName(), segment_size, packed_size,
                               u32{nso_header.segments[i].offset}, nso_file.GetSize(),
                               u32{nso_header.version}, u32{nso_header.flags},
-                              nso_header.IsZBICCompressed(), looks_zstd, head);
+                              nso_header.IsZBICCompressed(), looks_zbic, head);
                 }
 
                 std::memcpy(
