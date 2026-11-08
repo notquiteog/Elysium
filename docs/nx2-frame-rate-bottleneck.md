@@ -490,3 +490,36 @@ proven.
 
 What is no longer in doubt is where to look: the back thread, and what it spends 0.74 of a core
 on.
+
+## Ocarina of Time: our own Max Resolution patch was the 60 fps blocker
+
+None of the above. The built-in `Max Resolution` patch, on by default for this title, exists to
+stop the game lowering its own internal resolution:
+
+> Ocarina of Time takes its "dynamic resolution disabled" path, so the 3D renders at full scale
+> instead of following the GPU-time controller down to its 480p floor.
+
+So the game cannot trade resolution for frame rate -- and the recommended profile then enables
+FSR3 frame generation to make up the frames the patch suppresses. The two pull against each
+other. Measured on a real display, Hyrule Field, twelve 600-frame windows each (7,200 frames an
+arm), both with the profile and frame generation unchanged:
+
+| | mean | range | GPU |
+|---|---|---|---|
+| Max Resolution on | 41.9 fps | 39.0-44.5 | 79% |
+| Max Resolution off | 54.6 fps | six windows at 59.4-60.0 | 70% |
+
+Dropping one 15.3 fps window (an area load) the off mean is **58.1 fps**, and it holds a locked 60
+for long stretches. That is a 30 to 39% gain, from a patch default rather than from anything in
+the GPU pipeline, and it is far outside this machine's run-to-run spread -- the two arms do not
+overlap at all across 24 windows.
+
+The trade is image quality: the game now scales its 3D down under load, as it does on hardware.
+That is a judgement call rather than a measurement, so the patch default is unchanged and this is
+recorded for whoever makes it. Disabling it is per-game, in Properties -> Add-Ons.
+
+**Worth noting against the rest of this document.** Every threading change measured here moved
+waiting around without moving frames; the one change that moved frames was two defaults
+contradicting each other. The per-thread cycle table said the system was latency-bound and
+nothing was saturated -- and the GPU was at 79% in real gameplay against the 55-66% the headless
+captures showed, so even that table was taken under lighter load than people actually play in.
