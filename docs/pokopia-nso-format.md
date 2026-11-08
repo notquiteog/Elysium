@@ -91,7 +91,24 @@ too much means a length rule is still slightly wrong, each sequence contributing
 The second and third segments of every module fail on their first match, so they are framed
 differently again rather than being more of the same.
 
-What is left is the length encoding, not the identification.
+The segments are one stream. `seg1` and `seg2` fail on their first match only because it reaches
+back into `seg0`'s output: concatenated, a module's three segments decode end to end with no
+error at all (`subsdk0`: 750,495 of 750,535 bytes consumed). So the window is shared across the
+whole module rather than reset per segment.
+
+What holds up against the hash oracle: LZ4 sequence framing, 255-continuation extensions that
+include their final byte, two-byte offsets read as offset - 1, min-match 4, and overlapping
+matches that repeat. Ruled out: nibble order, a 254 continuation, min-match 3/5/6, dropping the
+final extension byte, forbidding overlap, capping match length, and every start offset other
+than 0.
+
+What is left is one rule that makes the output about 1.5% too long, drifting steadily rather
+than at a boundary (`subsdk0` seg0 is 8,740 over by the end of its own input).
+
+That residual may not be in the decoder at all. The segment tables of these modules overrun
+their files by 980, 31 and 301 bytes, which nothing has explained, and a header read with the
+wrong layout would give both a bad table and wrong expected sizes. Worth checking the NSO header
+against the bytes before assuming the decoder is what is wrong.
 
 `EDEN_NSO_DUMP_SEGMENTS` also writes a `.sha256` sidecar holding the header's hash of the
 decompressed segment and its size, so a candidate decoder is checked against the bytes the
