@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <array>
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -363,6 +364,104 @@ bool GpuSplit::WaitForMemoryWriters(DrainSite site, GPUVAddr begin, GPUVAddr end
     return WaitFor(target, site);
 }
 
+namespace {
+/// EDEN_NX2_WAIT_STATS=1: how long the front actually waits for the back, and which drain site
+/// it waits at. The profiler already attributes drains per site, but it turns off
+/// `fast_maxwell3d`, so it cannot measure the path that ships; these are plain env-gated
+/// counters, so they can. Costs one relaxed load per wait when off.
+struct WaitStats {
+    static bool Enabled() {
+        static const bool on = [] {
+            const char* const value = std::getenv("EDEN_NX2_WAIT_STATS");
+            return value != nullptr && value[0] == '1';
+        }();
+        return on;
+    }
+    static constexpr size_t num_sites = static_cast<size_t>(DrainSite::Count);
+
+    std::atomic<u64> waits{}, spins_total{}, parks{};
+    std::array<std::atomic<u64>, 6> buckets{}; ///< <64, <256, <1k, <4k, <16k, >=16k spins
+    std::array<std::atomic<u64>, num_sites> site_waits{}, site_spins{};
+    std::atomic<u64> last_report{};
+
+    /// Counted where the front actually parks, not from a spin count: the threshold is tunable,
+    /// so a bucket boundary cannot stand in for a sleep (reading one as the sleep count made a
+    /// lowered threshold report zero sleeps, which is impossible).
+    void NotePark() {
+        parks.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void Record(u32 spins, DrainSite site) {
+        waits.fetch_add(1, std::memory_order_relaxed);
+        spins_total.fetch_add(spins, std::memory_order_relaxed);
+        const size_t bucket = spins < 64      ? 0
+                              : spins < 256   ? 1
+                              : spins < 1024  ? 2
+                              : spins < 4096  ? 3
+                              : spins < 16384 ? 4
+                                              : 5;
+        buckets[bucket].fetch_add(1, std::memory_order_relaxed);
+        const size_t site_index = (std::min)(static_cast<size_t>(site), num_sites - 1);
+        site_waits[site_index].fetch_add(1, std::memory_order_relaxed);
+        site_spins[site_index].fetch_add(spins, std::memory_order_relaxed);
+
+        const u64 now = static_cast<u64>(
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count());
+        u64 last = last_report.load(std::memory_order_relaxed);
+        if (now - last < 5 || !last_report.compare_exchange_strong(last, now,
+                                                                  std::memory_order_relaxed)) {
+            return;
+        }
+        const u64 n = waits.exchange(0, std::memory_order_relaxed);
+        const u64 s = spins_total.exchange(0, std::memory_order_relaxed);
+        const u64 z = parks.exchange(0, std::memory_order_relaxed);
+        std::array<u64, 6> b{};
+        for (size_t i = 0; i < b.size(); ++i) {
+            b[i] = buckets[i].exchange(0, std::memory_order_relaxed);
+        }
+        std::array<u64, num_sites> sw{}, ss{};
+        for (size_t i = 0; i < num_sites; ++i) {
+            sw[i] = site_waits[i].exchange(0, std::memory_order_relaxed);
+            ss[i] = site_spins[i].exchange(0, std::memory_order_relaxed);
+        }
+        if (n == 0) {
+            return;
+        }
+        LOG_INFO(HW_GPU,
+                 "Nx2Perf front wait: {} waits, mean {} spins, {} parks ({:.1f} per wait) | "
+                 "<64 {} | <256 {} | <1k {} | <4k {} | <16k {} | >=16k {}",
+                 n, s / n, z, static_cast<double>(z) / static_cast<double>(n), b[0], b[1], b[2],
+                 b[3], b[4], b[5]);
+
+        // Which site the spinning is actually spent at: the point of the whole measurement, since
+        // a threshold can only trade spinning for parking, while a site names the work to fix.
+        std::array<size_t, num_sites> order{};
+        for (size_t i = 0; i < num_sites; ++i) {
+            order[i] = i;
+        }
+        std::sort(order.begin(), order.end(),
+                  [&ss](size_t a, size_t c) { return ss[a] > ss[c]; });
+        std::string top;
+        for (size_t i = 0; i < num_sites && i < 5; ++i) {
+            const size_t k = order[i];
+            if (ss[k] == 0) {
+                break;
+            }
+            top += fmt::format("{}{} {:.1f}% of spins ({} waits, mean {})", top.empty() ? "" : " | ",
+                               drain_site_names[k],
+                               100.0 * static_cast<double>(ss[k]) / static_cast<double>(s == 0 ? 1 : s),
+                               sw[k], ss[k] / (sw[k] == 0 ? 1 : sw[k]));
+        }
+        if (!top.empty()) {
+            LOG_INFO(HW_GPU, "Nx2Perf front wait by site: {}", top);
+        }
+    }
+};
+WaitStats g_wait_stats;
+} // Anonymous namespace
+
 bool GpuSplit::WaitFor(u64 target, DrainSite site) {
     consumed_cache = consumed.load(std::memory_order_acquire);
     if (consumed_cache >= target) {
@@ -377,6 +476,9 @@ bool GpuSplit::WaitFor(u64 target, DrainSite site) {
         if (consumed_cache >= target) {
             wait_target.store(~u64{0}, std::memory_order_relaxed);
             Nx2Profile::AddDrain(site, start);
+            if (WaitStats::Enabled()) [[unlikely]] {
+                g_wait_stats.Record(spins, site);
+            }
             return true;
         }
         Backoff(spins, target);
@@ -384,13 +486,22 @@ bool GpuSplit::WaitFor(u64 target, DrainSite site) {
 }
 
 void GpuSplit::Backoff(u32 spins, u64 target) {
-    if (spins < 16384) {
+    // Most waits are short -- on Mario Kart World 55% finish inside 64 spins and 73% inside 256
+    // -- so spinning first is right. The threshold is about the other end: only 4% of waits
+    // reach it, but at 16384 those few account for about half of all the spinning done, since
+    // each burns the full ceiling before sleeping anyway. EDEN_NX2_SPIN_LIMIT sets it.
+    static const u32 spin_limit = [] {
+        const char* const value = std::getenv("EDEN_NX2_SPIN_LIMIT");
+        const u32 parsed = value != nullptr ? static_cast<u32>(std::strtoul(value, nullptr, 10)) : 0;
+        return parsed != 0 ? parsed : 16384U;
+    }();
+    if (spins < spin_limit) {
         Pause();
         return;
     }
     // Still waiting on a parked back thread: its wake-up was lost (it froze Mario Kart World on
     // Android with the front here and the back parked). Wake it again.
-    if ((spins & 1023) == 0 && back_waiting.load(std::memory_order_seq_cst)) {
+    if (((spins - spin_limit) & 1023) == 0 && back_waiting.load(std::memory_order_seq_cst)) {
         wake.fetch_add(1, std::memory_order_seq_cst);
         wake.notify_all();
     }
@@ -403,6 +514,9 @@ void GpuSplit::Backoff(u32 spins, u64 target) {
     front_waiting.store(true, std::memory_order_seq_cst);
     const u32 seen = front_wake.load(std::memory_order_seq_cst);
     if (consumed.load(std::memory_order_seq_cst) < target) {
+        if (WaitStats::Enabled()) [[unlikely]] {
+            g_wait_stats.NotePark();
+        }
         front_wake.wait(seen, std::memory_order_seq_cst);
     }
     front_waiting.store(false, std::memory_order_relaxed);

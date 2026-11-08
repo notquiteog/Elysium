@@ -272,3 +272,53 @@ sampling profile of the back thread from outside.
 
 Split "other" without changing what runs -- `perf record` on the back thread would do it without
 the `fast_maxwell3d` problem -- and look at why a texture upload costs 0.38 ms.
+
+## The headless runs had the split switched off
+
+`elysium-cli` reads `sdl2-config.ini`, not the GUI's `qt-config.ini`, and its `gpu_accuracy`
+sat at the built-in default of `High` (`ENUM(GpuAccuracy, Low, High)`, so `gpu_accuracy=1`)
+while the GUI ran at `Low`. `GpuSplit::MaybeStart` requires `!Settings::IsGPULevelHigh()`:
+
+```cpp
+const bool allowed = !safe_reads && !Settings::IsGPULevelHigh() &&
+                     Settings::values.renderer_backend.GetValue() == RendererBackend::Vulkan;
+```
+
+So **the GPU thread split never started in a headless run**. "GPU thread split: engine methods
+run on a second thread" is absent from every `elysium-cli` log, and with the split inactive
+`WaitFor` is never called, so no front-wait figure could have come from one. Any number in this
+document that concerns the split and was taken headless measured a thread that did not exist;
+only the figures from a GUI session stand. Setting `gpu_accuracy=0` in `sdl2-config.ini`
+(with `gpu_accuracy\default=false`, or the startup write-back restores `High`) makes a headless
+run represent the configuration people actually play.
+
+This is the fourth time in one investigation that a measurement turned out to describe something
+other than what it was pointed at -- after Xvfb's 24% of the back thread, the zone profiler
+disabling `fast_maxwell3d`, and a stale Ocarina of Time session left running through a Mario Kart
+World benchmark. The pattern is the same each time: the run completes, the numbers look
+plausible, and nothing in them says they are about the wrong thing.
+
+## Where the front actually waits
+
+With the split genuinely running (Mario Kart World, `EDEN_NX2_WAIT_STATS=1`), per-site
+attribution puts essentially all of it in two places:
+
+| window | site | share of spins | waits | mean spins |
+|---|---|---|---|---|
+| t=35s | list writers | 97.9% | 30,276 | 403 |
+| t=40s | macro dma read | 56.5% | 2,299 | 5,263 |
+| t=40s | list writers | 43.5% | 15,518 | 600 |
+
+`macro dma read` is the long one -- 5,263 spins per wait against `list writers`' 600 -- and it is
+what `EDEN_NX2_RANGED_RELEASES=1` narrows.
+
+**The spin threshold is not a lever.** The front parks **0.1 times per wait**: of 17,817 waits
+only 689 reached 16,384 spins at all. Lowering the ceiling can only convert those few hundred
+long waits into futex sleeps; it cannot shorten a wait. An earlier A/B appeared to show the
+threshold mattering because "reached the sleep" was read off the `>=16k` bucket rather than
+counted at the sleep, so a lowered ceiling reported zero sleeps -- which is impossible, and was
+the tell. The park is now counted where the thread actually parks.
+
+And the front has nothing to do with the frame rate regardless: it idles 300 to 372 ms of every
+second. Reducing its waits turns spinning into idling, which is worth having for power and for
+weaker CPUs, but it is not where the frames are.
