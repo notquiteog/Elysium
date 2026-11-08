@@ -47,6 +47,7 @@ struct GpuSplitTestAccess {
     static void Start(GpuSplit& split, Core::System& system) {
         Initialize(split, system);
         split.active = true;
+        ++split.starts; // As MaybeStart does: a front copied before this is stale.
         split.back_thread = std::jthread([&split](std::stop_token stop) { split.BackLoop(stop); });
     }
 
@@ -836,4 +837,70 @@ TEST_CASE("Maxwell3D's split front uploads macro code sent as one multi-method r
     const auto& macros = engine.GetNativeMacroEngine();
     REQUIRE(macros.native_write_offset == pointer * 3 + code.size());
     CHECK(std::equal(code.begin(), code.end(), macros.native_code.begin() + pointer * 3));
+}
+
+// From zortos293/Lichii#488 (Marc Stampfli). FrontSkipsLoopWrite drops a same-value
+// vertex_buffer.first, vertex_buffer.count or instance-loop draw.end. Outside a macro the back's
+// method sink can still hold state writes: its next executable method consumes them, and a changed
+// one ends a deferred draw. With the method dropped nothing consumes the sink, so a compute
+// dispatch sent next can run before that draw.
+TEST_CASE("Maxwell3D's split front sends a loop write while the back's sink holds state writes",
+          "[video_core][gpu_split_dependencies]") {
+    using Access = VideoCommon::GpuSplitTestAccess;
+    Fixture f;
+    VideoCommon::GpuSplit split;
+    Access::Initialize(split, f.system);
+    auto& engine = f.fast;
+    constexpr u32 First = MAXWELL3D_REG_INDEX(vertex_buffer.first);
+    const u32 state = f.state_methods.front();
+    REQUIRE(engine.execution_mask[First]);
+    REQUIRE_FALSE(engine.execution_mask[state]);
+    // Prime the register and the front's shadow copy so a repeat keeps the value, and leave the
+    // sink clear: vertex_buffer.first is executable, so sending it consumes the sink.
+    engine.FrontCallMethod(f.system, split, First, 7, true);
+    engine.FrontCallMethod(f.system, split, First, 7, true);
+    const u64 clear_sink = Access::End(split);
+    engine.FrontCallMethod(f.system, split, First, 7, true);
+    // The repeat is dropped with the sink clear. (EDEN_NX2_SKIP_SAME=0 or EDEN_NX2_SPLIT_SKIP=0
+    // turn the skip off altogether, and then there is nothing here to guard.)
+    REQUIRE(Access::End(split) == clear_sink);
+    // A state write outside a macro leaves writes waiting in the sink.
+    engine.FrontCallMethod(f.system, split, state, 0x1234, true);
+    const u64 pending_sink = Access::End(split);
+    engine.FrontCallMethod(f.system, split, First, 7, true);
+    CHECK(Access::End(split) > pending_sink);
+    // That write consumed the sink, so the next repeat is dropped again.
+    const u64 consumed = Access::End(split);
+    engine.FrontCallMethod(f.system, split, First, 7, true);
+    CHECK(Access::End(split) == consumed);
+    // A multi-method run consumes the sink as well: the back consumes it before a run.
+    engine.FrontCallMethod(f.system, split, state, 0x4321, true);
+    const std::array<u32, 1> word{0x8765};
+    engine.FrontCallMultiMethod(f.system, split, state, word.data(), 1, 1);
+    const u64 after_run = Access::End(split);
+    engine.FrontCallMethod(f.system, split, First, 7, true);
+    CHECK(Access::End(split) == after_run);
+}
+
+TEST_CASE("Maxwell3D's split front drops a copy made during an earlier split start",
+          "[video_core][gpu_split_dependencies]") {
+    using Access = VideoCommon::GpuSplitTestAccess;
+    Fixture f;
+    f.system.Initialize();
+    VideoCommon::GpuSplit split;
+    auto& engine = f.fast;
+    const u32 state = f.state_methods.front();
+    Access::Start(split, f.system);
+    engine.FrontCallMethod(f.system, split, state, 0x1234, true);
+    split.Stop();
+    // While the split was stopped, state writes went to the engine through the method sink: the
+    // front's copy says 0x1234 where the back now holds 0x5678.
+    engine.regs.reg_array[state] = 0x5678;
+    engine.shadow_state.reg_array[state] = 0x5678;
+    Access::Start(split, f.system);
+    SCOPE_EXIT { split.Stop(); };
+    const u64 before = Access::End(split);
+    // A stale copy drops this as a same-value write and the back keeps 0x5678.
+    engine.FrontCallMethod(f.system, split, state, 0x1234, true);
+    CHECK(Access::End(split) > before);
 }
