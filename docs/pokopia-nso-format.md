@@ -68,6 +68,31 @@ the update's, and its pair of u32s is 52 bytes apart as well (40046704, 40046756
 So both packages' modules are in this format, and taking the executables from the other one is
 not the answer.
 
+## It is an LZ4 variant, not an unknown codec
+
+`EDEN_NSO_DUMP_SEGMENTS=<dir>` writes the bytes no codec read. Decoding one as a raw LZ4 block
+from its first byte produces real ARM64: `7f 23 03 d5` (`PACIASP`), `ff 43 02 d1`
+(`sub sp, sp, #0x90`), `fd 7b 07 a9` (`stp x29, x30, [sp, #0x70]`) -- a function prologue, as
+LZ4 literals. So the tag byte and the pair of u32s above are not a header; they are the first
+sequence's token and literals, and the stream begins at byte 0.
+
+Plain LZ4 stops after 613,679 bytes on a match offset of 0, which LZ4 forbids. Reading the
+two-byte offset as **offset - 1** carries the first segment of each module to the end of its
+input:
+
+| segment | source consumed | produced | expected |
+|---|---|---|---|
+| `main` seg0 | 23,151,272 / 23,151,272 | 41,249,980 | 41,194,624 |
+| `sdk` seg0 | 4,637,389 / 4,637,522 | 8,128,740 | 8,092,656 |
+| `subsdk0` seg0 | 518,033 / 518,035 | 733,468 | 724,832 |
+
+Consuming the whole input means the sequences are being framed correctly. Producing 0.1 to 1.2%
+too much means a length rule is still slightly wrong, each sequence contributing a few bytes.
+The second and third segments of every module fail on their first match, so they are framed
+differently again rather than being more of the same.
+
+What is left is the length encoding, not the identification.
+
 ## Where that leaves it
 
 Two readings fit the evidence, and they want different work:

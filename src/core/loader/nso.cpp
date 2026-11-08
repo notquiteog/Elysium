@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include <fstream>
+
 #include "common/common_funcs.h"
 #include "common/game_presets.h"
 #include "common/hex_util.h"
@@ -162,6 +164,24 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
                               u32{nso_header.segments[i].offset}, nso_file.GetSize(),
                               u32{nso_header.version}, u32{nso_header.flags},
                               nso_header.IsZBICCompressed(), looks_zbic, head);
+                    // EDEN_NSO_DUMP_SEGMENTS=<dir> writes the bytes no codec read, so the format
+                    // can be worked out away from a boot. Only segments that failed are written.
+                    static const std::string dump_dir = [] {
+                        const char* const value = std::getenv("EDEN_NSO_DUMP_SEGMENTS");
+                        return value != nullptr ? std::string{value} : std::string{};
+                    }();
+                    if (!dump_dir.empty()) {
+                        const std::string path =
+                            fmt::format("{}/{}.seg{}.bin", dump_dir, nso_file.GetName(), i);
+                        std::ofstream out_file(path, std::ios::binary);
+                        if (out_file) {
+                            out_file.write(reinterpret_cast<const char*>(in.data()),
+                                           static_cast<std::streamsize>(in.size()));
+                            LOG_INFO(Loader, "Wrote {} bytes to {}", in.size(), path);
+                        } else {
+                            LOG_ERROR(Loader, "Could not write {}", path);
+                        }
+                    }
                 }
 
                 std::memcpy(
