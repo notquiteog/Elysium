@@ -490,11 +490,16 @@ void DeviceMemoryManager<Traits>::ReadBlock(DAddr address, void* dest_pointer, s
         address, size,
         [&](size_t copy_amount, DAddr current_vaddr) {
             static std::atomic<u32> reported{};
-            if (reported.fetch_add(1, std::memory_order_relaxed) < 16) {
+            // The first 16, then at powers of two. A flat cap of 16 hid the scale: a title
+            // glitching from unmapped reads looked the same in a log as one that touched a
+            // stray page once, and the count never moved after the sixteenth.
+            const u32 occurrence = reported.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (occurrence <= 16 || (occurrence & (occurrence - 1)) == 0) {
                 LOG_ERROR(
                     HW_Memory,
-                    "Unmapped Device ReadBlock @ {:#016x} (start address = {:#016x}, size = {})",
-                    current_vaddr, address, size);
+                    "Unmapped Device ReadBlock @ {:#016x} (start address = {:#016x}, size = "
+                    "{}), occurrence {}",
+                    current_vaddr, address, size, occurrence);
             }
             std::memset(dest_pointer, 0, copy_amount);
         },
@@ -512,11 +517,16 @@ void DeviceMemoryManager<Traits>::WriteBlock(DAddr address, const void* src_poin
         address, size,
         [&](size_t copy_amount, DAddr current_vaddr) {
             static std::atomic<u32> reported{};
-            if (reported.fetch_add(1, std::memory_order_relaxed) < 16) {
+            // The first 16, then at powers of two. A flat cap of 16 hid the scale: a title
+            // glitching from unmapped reads looked the same in a log as one that touched a
+            // stray page once, and the count never moved after the sixteenth.
+            const u32 occurrence = reported.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (occurrence <= 16 || (occurrence & (occurrence - 1)) == 0) {
                 LOG_ERROR(
                     HW_Memory,
-                    "Unmapped Device WriteBlock @ {:#016x} (start address = {:#016x}, size = {})",
-                    current_vaddr, address, size);
+                    "Unmapped Device WriteBlock @ {:#016x} (start address = {:#016x}, size = "
+                    "{}), occurrence {}",
+                    current_vaddr, address, size, occurrence);
             }
         },
         [&](size_t copy_amount, u8* const dst_ptr) {
@@ -555,11 +565,16 @@ void DeviceMemoryManager<Traits>::ReadBlockUnsafe(DAddr address, void* dest_poin
         address, size,
         [&](size_t copy_amount, DAddr current_vaddr) {
             static std::atomic<u32> reported{};
-            if (reported.fetch_add(1, std::memory_order_relaxed) < 16) {
+            // The first 16, then at powers of two. A flat cap of 16 hid the scale: a title
+            // glitching from unmapped reads looked the same in a log as one that touched a
+            // stray page once, and the count never moved after the sixteenth.
+            const u32 occurrence = reported.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (occurrence <= 16 || (occurrence & (occurrence - 1)) == 0) {
                 LOG_ERROR(
                     HW_Memory,
-                    "Unmapped Device ReadBlock @ {:#016x} (start address = {:#016x}, size = {})",
-                    current_vaddr, address, size);
+                    "Unmapped Device ReadBlockUnsafe @ {:#016x} (start address = {:#016x}, size = "
+                    "{}), occurrence {}",
+                    current_vaddr, address, size, occurrence);
             }
             std::memset(dest_pointer, 0, copy_amount);
         },
@@ -578,11 +593,16 @@ void DeviceMemoryManager<Traits>::WriteBlockUnsafe(DAddr address, const void* sr
         address, size,
         [&](size_t copy_amount, DAddr current_vaddr) {
             static std::atomic<u32> reported{};
-            if (reported.fetch_add(1, std::memory_order_relaxed) < 16) {
+            // The first 16, then at powers of two. A flat cap of 16 hid the scale: a title
+            // glitching from unmapped reads looked the same in a log as one that touched a
+            // stray page once, and the count never moved after the sixteenth.
+            const u32 occurrence = reported.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (occurrence <= 16 || (occurrence & (occurrence - 1)) == 0) {
                 LOG_ERROR(
                     HW_Memory,
-                    "Unmapped Device WriteBlock @ {:#016x} (start address = {:#016x}, size = {})",
-                    current_vaddr, address, size);
+                    "Unmapped Device WriteBlockUnsafe @ {:#016x} (start address = {:#016x}, size = "
+                    "{}), occurrence {}",
+                    current_vaddr, address, size, occurrence);
             }
         },
         [&](size_t copy_amount, u8* const dst_ptr) {
