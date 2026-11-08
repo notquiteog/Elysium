@@ -277,7 +277,7 @@ private:
     FenceManager fence_manager;
     FrameDump frame_dump;
 
-    vk::Event wfi_event;
+    vk::Event wfi_event; // Only used when EGLANTINE_SYNC_FIX=0
     u64 wfi_record_count = ~u64{}; ///< Scheduler::RecordCount() after the last wait for idle
 
     boost::container::static_vector<u32, MAX_IMAGE_VIEWS> image_view_indices;

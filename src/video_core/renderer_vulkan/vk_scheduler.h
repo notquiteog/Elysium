@@ -136,6 +136,11 @@ public:
         return render_pass_has_stores;
     }
 
+    /// A dispatch was recorded: the next render pass must see what it wrote.
+    void NoteComputeWrites() {
+        compute_writes_pending = true;
+    }
+
     /// Returns true when a render pass is currently active in the scheduler state.
     bool IsRenderPassActive() const {
         return state.renderpass != VK_NULL_HANDLE;
@@ -454,6 +459,7 @@ private:
     StateTracker& state_tracker;
 
     std::unique_ptr<MasterSemaphore> master_semaphore;
+    bool compute_writes_pending{};
     FragmentBarrierState fragment_barrier;
     bool render_pass_has_stores{};
     bool graphics_pipeline_missing{};

@@ -81,6 +81,17 @@ EDEN_NX2_FENCE_BATCH=1
 # Terrain/indirect drawing fix for Donkey Kong Bananza: enabled by default. Set to 0 only to leave to GPU.
 #EDEN_NX2_RESETFIX=0
 
+# Order compute writes before the work that reads them: enabled by default. Set to 0 to restore
+# the old behaviour. Three parts, all of which were missing ordering the GPU is entitled to
+# reorder across: the barrier before a dispatch now also covers DRAW_INDIRECT; an indirect
+# dispatch gets that barrier at all (it had none); the next render pass begins after a
+# COMPUTE_SHADER -> ALL_GRAPHICS barrier when a dispatch was recorded since the last one; and
+# wait-for-idle is a real pipeline barrier to ALL_COMMANDS instead of an event that was set once,
+# never reset, and carried no memory barrier, so it made no write visible. With =0 the event path
+# comes back, which is why vk_rasterizer still holds wfi_event. Ours keeps the wait-for-idle skip
+# on top of this (a wait with nothing recorded since the last one still returns early).
+#EGLANTINE_SYNC_FIX=0
+
 # Drop reactive-flushing read traps on Switch 2 programs (opt-in; can reduce FPS from 29 to 24 in MKW).
 #EDEN_NX2_NO_REACTIVE=1
 
