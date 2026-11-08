@@ -509,10 +509,24 @@ arm), both with the profile and frame generation unchanged:
 | Max Resolution on | 41.9 fps | 39.0-44.5 | 79% |
 | Max Resolution off | 54.6 fps | six windows at 59.4-60.0 | 70% |
 
-Dropping one 15.3 fps window (an area load) the off mean is **58.1 fps**, and it holds a locked 60
-for long stretches. That is a 30 to 39% gain, from a patch default rather than from anything in
-the GPU pipeline, and it is far outside this machine's run-to-run spread -- the two arms do not
-overlap at all across 24 windows.
+Those twelve windows an arm were a sample, and sampling flattered the result. The full runs,
+every window after shader compilation settles:
+
+| | windows | shape |
+|---|---|---|
+| Max Resolution on | 32 | **flat**: 33.2 to 44.6, mean ~41, no trend |
+| Max Resolution off | 45 | **locked 58.9-60.0 for ~36 windows (~21,600 frames, six minutes), then 55.1, 53.7, 52.3, 15.3, 26.8, 37.6, 33.6** |
+
+So the honest comparison is not "41.9 against 54.6". It is six minutes of a genuine locked 60
+against a flat 41 -- a large win while it lasts -- followed by a decline into the 26-38 range that
+**overlaps the patched run**. The earlier claim here that the two arms never overlap was taken
+from the sampled windows and is withdrawn: at the tail they do.
+
+The patched run showed no such decline over 39 windows, so the instability arrives with the
+dynamic resolution path rather than being present in both. Whether the tail is a heavier area or
+something that degrades over time is unresolved, and it needs a run that revisits the same spot
+to tell those apart. Until then the patch is worth disabling for the locked-60 stretch, but it is
+not a clean win.
 
 The trade is image quality: the game now scales its 3D down under load, as it does on hardware.
 That is a judgement call rather than a measurement, so the patch default is unchanged and this is
