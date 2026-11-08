@@ -33,6 +33,15 @@ EDEN_NX2_FENCE_BATCH=1
 # and 36.7 -> 34.0 fps, so the default stands and this is left for per-title testing.
 #EDEN_NX2_TEXTURE_COLD_HINT=0
 
+# Skip the guest-memory upload of a new image the join copies overwrite whole (opt-in). The
+# clear-binding equivalent is already unconditional and was worth ~15% of the GPU back thread on
+# Ocarina of Time; this covers the case where copies rather than a clear do the overwriting,
+# ported from Frizti's EXP8 bit 2. Off by default because, unlike the clear path, it leaves no
+# safety net: a predicate wrong anywhere shows as a garbage texture, and it fires often enough to
+# matter -- 2,177 skips in 52 s on Mario Kart World, about 42/s against ~417 uploads/s. Wants a
+# look on a real display, and an Ocarina of Time run, before it becomes a default.
+#EDEN_NX2_COPY_SKIP=1
+
 # --- Diagnostics (logging only, no behaviour change) ---
 # Front-thread waits per drain site, in wall clock, with how much of each was parked.
 #EDEN_NX2_WAIT_STATS=1

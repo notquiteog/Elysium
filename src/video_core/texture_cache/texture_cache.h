@@ -3057,9 +3057,98 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
             return false;
         }
     };
+    // The copy case of overwritten_by_clear above: a new image the join copies overwrite whole
+    // needs no upload from guest memory either. overwritten_by_clear only fires when there are no
+    // join copies, so this closes the complementary half. Ported from Frizti's EDEN_NX2_EXP8
+    // bit 2, part of 52.0 -> 54.2 fps average and 31.1 -> 35.2 1% low on Ocarina of Time there.
+    //
+    // Off by default: unlike the clear path this leaves no safety net -- that one stays
+    // CpuModified so PrepareImage still uploads if IsFullClear disagrees -- so a predicate that
+    // is wrong anywhere shows as a garbage texture rather than a slow frame. It fires often enough
+    // to matter -- 2,177 skips in 52 s on Mario Kart World, ~42/s against ~417 uploads/s -- which
+    // is the reason to verify it on a real display rather than to trust it. EDEN_NX2_COPY_SKIP=1.
+    const auto overwritten_by_copies = [&] {
+        static const bool enabled = [] {
+            const char* const value = std::getenv("EDEN_NX2_COPY_SKIP");
+            return value != nullptr && value[0] == '1';
+        }();
+        if (!enabled || join_copies_to_do.empty()) {
+            return false;
+        }
+        const ImageInfo& image_info = new_image.info;
+        constexpr ImageFlagBits unusual = ImageFlagBits::Sparse | ImageFlagBits::SparseLayers |
+                                          ImageFlagBits::SparseTiles |
+                                          ImageFlagBits::UnwrittenSparse | ImageFlagBits::Unbacked;
+        if (image_info.type != ImageType::e2D || image_info.resources.levels != 1 ||
+            image_info.resources.layers != 1 || image_info.num_samples != 1 ||
+            True(new_image.flags & (unusual | ImageFlagBits::Converted |
+                                    ImageFlagBits::AsynchronousDecode))) {
+            return false;
+        }
+        const auto blocks = [](const ImageInfo& of, s32 level) {
+            const Extent3D size = MipSize(of.size, static_cast<u32>(level));
+            return Extent2D{
+                .width = Common::DivCeil(size.width, DefaultBlockWidth(of.format)),
+                .height = Common::DivCeil(size.height, DefaultBlockHeight(of.format)),
+            };
+        };
+        const Extent2D new_blocks = blocks(image_info, 0);
+        const auto covers = [&](const ImageInfo& overlap_info, s32 level) {
+            const Extent2D overlap_blocks = blocks(overlap_info, level);
+            return overlap_blocks.width >= new_blocks.width &&
+                   overlap_blocks.height >= new_blocks.height;
+        };
+        for (const JoinCopy& copy : join_copies_to_do) {
+            const ImageBase& overlap = slot_images[copy.id];
+            if (overlap.info.type != ImageType::e2D || overlap.info.num_samples != 1 ||
+                True(overlap.flags & unusual) ||
+                GetFormatType(overlap.info.format) != GetFormatType(image_info.format) ||
+                BytesPerBlock(overlap.info.format) != BytesPerBlock(image_info.format) ||
+                overlap.info.astc_opaque != image_info.astc_opaque) {
+                continue;
+            }
+            if (!copy.is_alias) {
+                // Copied whole (MakeShrinkImageCopies) when the GPU wrote it.
+                const std::optional<SubresourceBase> base = new_image.TryFindBase(overlap.gpu_addr);
+                if (True(overlap.flags & ImageFlagBits::GpuModified) && base &&
+                    base->level == 0 && base->layer == 0) {
+                    return true;
+                }
+                continue;
+            }
+            if (!overlap.IsSafeGpuCopy()) {
+                continue;
+            }
+            // The extent AddImageAlias gives the copy: the smaller of the two at the base found.
+            constexpr auto options = RelaxedOptions::Size | RelaxedOptions::Format;
+            if (std::ranges::find(join_left_aliased_ids, copy.id) != join_left_aliased_ids.end()) {
+                const std::optional<SubresourceBase> base =
+                    FindSubresource(image_info, overlap, new_image.gpu_addr, options, false, true);
+                if (base && covers(overlap.info, base->level)) {
+                    return true;
+                }
+            } else {
+                const std::optional<SubresourceBase> base =
+                    FindSubresource(overlap.info, new_image, overlap.gpu_addr, options, false, true);
+                if (base && base->level == 0 && base->layer == 0 && covers(overlap.info, 0)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
     if (overwritten_by_clear()) {
         // Stays CpuModified: UpdateRenderTargets' PrepareImage drops the upload only when
         // IsFullClear agrees the clear covers the whole image, and uploads it otherwise.
+        runtime.TransitionImageLayout(new_image);
+    } else if (overwritten_by_copies()) {
+        // Counted so a run can show the skip fires at all before any frame-rate claim is made.
+        static std::atomic<u64> skipped{};
+        if ((skipped.fetch_add(1, std::memory_order_relaxed) & 63) == 0) {
+            LOG_INFO(HW_GPU, "Nx2Perf copy skip: {} uploads skipped, the join copies cover them",
+                     skipped.load(std::memory_order_relaxed));
+        }
         runtime.TransitionImageLayout(new_image);
     } else {
         // TODO: Only upload what we need
