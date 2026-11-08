@@ -68,6 +68,12 @@ EDEN_NX2_FENCE_BATCH=1
 # Drop reactive-flushing read traps on Switch 2 programs (opt-in; can reduce FPS from 29 to 24 in MKW).
 #EDEN_NX2_NO_REACTIVE=1
 
+# Keep the native global memory helpers as calls and route with one switch, rather than letting the
+# driver inline a branch per candidate buffer at every access: enabled by default. Set to 0 to
+# restore the old code (Ocarina of Time's foliage compute programs took NVIDIA's compiler 2.4 s
+# each to build with it, 0.6 s this way).
+#EDEN_NX2_LEAN_SSBO=0
+
 #EDEN_NX2_MME_JIT=0
 #EDEN_NX2_PBFLUSH=0
 #EDEN_NX2_SKIP_SAME=0

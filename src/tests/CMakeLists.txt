@@ -89,6 +89,7 @@ add_executable(tests
     video_core/uniform_cache_history.cpp
     video_core/x8d24_conversion.cpp
     video_core/ampere_ported_half_compare.cpp
+    video_core/spirv_global_memory.cpp
     video_core/ampere_geometry_capture.cpp
     video_core/ampere_geometry_exit.cpp
     video_core/ampere_geometry_lowering.cpp
