@@ -324,6 +324,17 @@ void Swapchain::CreateSwapchain(const VkSurfaceCapabilitiesKHR& capabilities) {
     surface_format = ChooseSwapSurfaceFormat(formats, requested_format);
     present_mode = ChooseSwapPresentMode(has_imm, has_mailbox, has_fifo_relaxed);
 
+    // Which mode the surface actually got. A driver without FIFO_RELAXED falls back to FIFO,
+    // which holds a late frame to the next vblank and so steps the rate down in whole divisors
+    // of the refresh rate (60 -> 30 -> 20) rather than letting it sit between them. Without this
+    // line the two are indistinguishable from a log.
+    LOG_INFO(Render_Vulkan,
+             "Swapchain present mode {} for VSync setting {} (available: immediate={} mailbox={} "
+             "fifo_relaxed={})",
+             string_VkPresentModeKHR(present_mode),
+             static_cast<int>(Settings::values.vsync_mode.GetValue()), has_imm, has_mailbox,
+             has_fifo_relaxed);
+
     u32 requested_image_count{capabilities.minImageCount + 1};
     // Ensure Triple buffering if possible.
     if (capabilities.maxImageCount > 0) {
