@@ -137,6 +137,7 @@ bool IsSwitch2Program(const FileSys::VirtualFile& file, u64& program_id, std::si
         if (nup.GetStatus() != Loader::ResultStatus::Success) {
             return false;
         }
+        nup.LogPackages();
         const auto base = nup.FindBasePackage();
         const auto update = nup.FindBestUpdatePackage();
         std::optional<std::size_t> program;
@@ -145,6 +146,9 @@ bool IsSwitch2Program(const FileSys::VirtualFile& file, u64& program_id, std::si
         } else if (base && nup.GetExeFSDir(*base) != nullptr) {
             program = base;
         }
+        LOG_INFO(Loader, "NUP exefs taken from package {} (base {}, best update {})",
+                 program ? static_cast<s64>(*program) : -1,
+                 base ? static_cast<s64>(*base) : -1, update ? static_cast<s64>(*update) : -1);
         const auto exefs = program ? nup.GetExeFSDir(*program) : nullptr;
         const auto npdm = exefs != nullptr ? exefs->GetFile("main.npdm") : nullptr;
         return load_npdm(npdm);

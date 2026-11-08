@@ -113,11 +113,23 @@ AppLoader_NUP::AppLoader_NUP(FileSys::VirtualFile file_)
     // (SPEC §4.1.2) carries a complete patched tree and boots on its own.
     std::optional<std::size_t> program_index;
     std::optional<std::size_t> exefs_index;
+    // EDEN_NUP_PACKAGE=base|update takes the ExeFS from that package rather than preferring the
+    // newest update, so a module that will not load can be told apart from one taken from the
+    // wrong package. Pokemon Pokopia carries a base with no RomFS and a version 655360 update,
+    // and its update's modules decompress as none of the codecs this loader knows.
+    static const std::string forced_package = [] {
+        const char* const value = std::getenv("EDEN_NUP_PACKAGE");
+        return value != nullptr ? std::string{value} : std::string{};
+    }();
+    const auto usable = [&](const std::optional<std::size_t>& index) {
+        return index && nup->GetExeFSDir(*index) != nullptr;
+    };
     if (base_index && nup->GetExeFSDir(*base_index) != nullptr) {
         program_index = base_index;
-        exefs_index = update_index && nup->GetExeFSDir(*update_index) != nullptr
-                          ? update_index
-                          : base_index;
+        exefs_index = forced_package == "base"     ? base_index
+                      : forced_package == "update" && usable(update_index) ? update_index
+                      : usable(update_index)       ? update_index
+                                                   : base_index;
     } else if (update_index && nup->GetExeFSDir(*update_index) != nullptr) {
         LOG_INFO(Loader,
                  "NUP container is a standalone update; booting the update program directly");
@@ -128,6 +140,9 @@ AppLoader_NUP::AppLoader_NUP(FileSys::VirtualFile file_)
         LOG_ERROR(Loader, "NUP container has no package with a usable ExeFS");
         return;
     }
+
+    LOG_INFO(Loader, "NUP program from package {}, ExeFS from package {}{}", *program_index,
+             *exefs_index, forced_package.empty() ? "" : " (EDEN_NUP_PACKAGE)");
 
     const auto& program = nup->GetPackages()[*program_index];
     base_title_id = program.title_id;

@@ -47,6 +47,27 @@ is not a format the title uses throughout. A theory that the NSO header is being
 read with the wrong layout has to explain why `rtld` parses correctly from the
 same code.
 
+## Not the package it came from
+
+Its NUP holds two packages, and the loader takes the program from one and the ExeFS from the
+other:
+
+```
+package 0: base   version 0      exefs dir 1, romfs dir 4294967295 (none)
+package 1: update version 655360 exefs dir 3, romfs dir 4
+NUP program from package 0, ExeFS from package 1
+```
+
+A base with no RomFS and its data in a 655360 update is what Frizti's `34efb43fcc` describes for
+the loose dump of this title, so the container is read correctly. The modules it yields are not a
+mismatched pair either: `EDEN_NUP_PACKAGE=base` loads the base's own 28,684,035 byte `main`
+instead of the update's 29,404,104 byte one, and it fails the same way, 18 segments over both
+runs. The base's first segment begins `df 01 00 00 00 70 10 64 02 a4 10 64 02`, the same shape as
+the update's, and its pair of u32s is 52 bytes apart as well (40046704, 40046756).
+
+So both packages' modules are in this format, and taking the executables from the other one is
+not the answer.
+
 ## Where that leaves it
 
 Two readings fit the evidence, and they want different work:

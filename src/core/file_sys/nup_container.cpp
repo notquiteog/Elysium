@@ -712,6 +712,23 @@ std::optional<std::size_t> NupContainer::FindPackage(PackageKind kind,
     return std::nullopt;
 }
 
+/// What the container holds, and which package an exefs would come from. A NUP may carry a base
+/// and one or more updates, and the executables of the two need not be interchangeable, so a
+/// module that will not load is worth telling apart from one taken from the wrong package.
+void NupContainer::LogPackages() const {
+    for (std::size_t i = 0; i < packages.size(); ++i) {
+        const PackageInfo& package = packages[i];
+        const char* kind = package.kind == PackageKind::Base     ? "base"
+                           : package.kind == PackageKind::Update ? "update"
+                                                                 : "addon";
+        LOG_INFO(Loader,
+                 "NUP package {}: {} title {:016X} version {} (exefs dir {}, romfs dir {}, "
+                 "standalone update {})",
+                 i, kind, package.title_id, package.version, package.exefs_dir, package.romfs_dir,
+                 package.standalone_update);
+    }
+}
+
 std::optional<std::size_t> NupContainer::FindBasePackage() const {
     return FindPackage(PackageKind::Base);
 }
