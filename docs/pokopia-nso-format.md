@@ -165,6 +165,24 @@ console would have produced rather than against a length. Against that oracle, n
 a 254 continuation byte and min-match 3, 5 and 6 are all ruled out; only offset - 1 with
 min-match 4 comes close, and it is long by 8,636 bytes on `subsdk0` seg0.
 
+## What the documented format says
+
+Switchbrew's NSO page gives the flags as bit 0-2 "segment is compressed", bits 3-5 "check this
+segment's hash", bit 6 ExecuteOnlyMemory (20.0.0) and bit 7 `UseZbicCompression`, "use
+zstd-based compression instead of LZ4", added in 22.0.0. Compressed section data begins at
+0x100. LZ4 is the default and nothing newer than ZBIC is documented, for Switch 2 or otherwise.
+
+Pokopia reports flags 0x3f: its three segments are compressed and hash-checked, and bit 7 is
+clear, so by the specification these are plain LZ4 segments. They are not.
+
+Where the segments start is not in doubt either. Segment 0's fourth word is the module name's
+offset and segment 1's is its size, and for all three modules the name sits at 0x100 and the
+first segment begins immediately after it, exactly where the header's own `file_offset` says:
+0x115 for `subsdk0`, 0x106 for `sdk`, 0x10a for `main`.
+
+So the bytes being decoded are the right bytes, read from the right place, in a format the
+title declares to be LZ4 and which plain LZ4 cannot read.
+
 ## Where that leaves it
 
 Two readings fit the evidence, and they want different work:
