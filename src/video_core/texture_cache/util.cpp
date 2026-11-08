@@ -925,15 +925,34 @@ boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(
             const std::span<u8> dst = output.subspan(host_offset);
             const std::span<const u8> src = input.subspan(guest_offset + guest_layer_offset);
             const bool native_layout = info.UsesNativeSectorLayout(gpu_memory.UsesNativeTiling());
-            if (!worker ||
-                info.type != ImageType::e2D || info.num_samples != 1 ||
-                !worker->TryUnswizzle(
+            const bool splittable = info.type == ImageType::e2D && info.num_samples == 1;
+            // Bands are whole block rows: contiguous in guest memory and disjoint, so each chunk
+            // is an image of its own and no snapshot of the input is needed. TryUnswizzle's
+            // half/half split does copy the input first, which costs more than it saves wherever
+            // the pitch is 16-byte granular -- which, after the bpp collapse, is nearly always.
+            // Bands run synchronously and the caller takes chunks too, so a busy pool is no
+            // worse than unswizzling here.
+            // EDEN_NX2_UNSWIZZLE_BANDS=0 keeps the work on this thread, for measuring.
+            static const bool bands = [] {
+                const char* const value = std::getenv("EDEN_NX2_UNSWIZZLE_BANDS");
+                return value == nullptr || value[0] != '0';
+            }();
+            if (!splittable || !bands ||
+                !Tegra::Texture::TryUnswizzleBands(
                     dst.first(host_bytes_per_layer), src.first(level_sizes[level]), 1U << bpp_log2,
                     num_tiles.width, num_tiles.height, num_tiles.depth, block.height, block.depth,
                     stride_alignment, native_layout, Nx2Perf::Verify())) {
-                UnswizzleTexture(dst, src, 1U << bpp_log2, num_tiles.width, num_tiles.height,
-                                 num_tiles.depth, block.height, block.depth, stride_alignment,
-                                 native_layout);
+                if (!worker ||
+                    !splittable ||
+                    !worker->TryUnswizzle(
+                        dst.first(host_bytes_per_layer), src.first(level_sizes[level]),
+                        1U << bpp_log2, num_tiles.width, num_tiles.height, num_tiles.depth,
+                        block.height, block.depth, stride_alignment, native_layout,
+                        Nx2Perf::Verify())) {
+                    UnswizzleTexture(dst, src, 1U << bpp_log2, num_tiles.width, num_tiles.height,
+                                     num_tiles.depth, block.height, block.depth, stride_alignment,
+                                     native_layout);
+                }
             }
             guest_layer_offset += layer_stride;
             host_offset += host_bytes_per_layer;
