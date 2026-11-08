@@ -1296,12 +1296,16 @@ UnswizzlePlan PlanUnswizzleImageRows(
 /// Reads and decodes a precomputed plan into output using its recorded sector-layout override.
 void ExecuteUnswizzlePlan(Tegra::MemoryManager& gpu_memory, const UnswizzlePlan& plan,
                          std::span<u8> output) {
-    std::vector<u8> run;
+    // Every byte resized into is overwritten by the read below, so std::vector's zeroing is
+    // wasted, and the vector was reallocated per upload -- 417 of them a second, on the thread
+    // that gates frames. thread_local because uploads also run on the texture workers.
+    static thread_local Common::ScratchBuffer<u8> run;
     for (const auto& r : plan.runs) {
-        run.resize(r.guest_bytes);
+        run.resize_destructive(r.guest_bytes);
         gpu_memory.ReadBlockUnsafe(r.src_addr, run.data(), r.guest_bytes);
         Tegra::Texture::UnswizzleTexture(output.subspan(r.host_offset, r.host_bytes),
-                                         run, 1U << plan.bpp_log2, r.run_tiles, r.tile_rows, 1,
+                                         std::span<const u8>{run.data(), r.guest_bytes},
+                                         1U << plan.bpp_log2, r.run_tiles, r.tile_rows, 1,
                                          r.block.height, r.block.depth, r.run_alignment,
                                          gpu_memory.UsesNativeTiling() && !plan.legacy_sector_layout);
     }
