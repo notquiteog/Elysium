@@ -3065,8 +3065,9 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
     // Off by default: unlike the clear path this leaves no safety net -- that one stays
     // CpuModified so PrepareImage still uploads if IsFullClear disagrees -- so a predicate that
     // is wrong anywhere shows as a garbage texture rather than a slow frame. It fires often enough
-    // to matter -- 2,177 skips in 52 s on Mario Kart World, ~42/s against ~417 uploads/s -- which
-    // is the reason to verify it on a real display rather than to trust it. EDEN_NX2_COPY_SKIP=1.
+    // to matter -- 10,497 skips in ~90 s on Mario Kart World, ~117/s against ~417 uploads/s, about
+    // a quarter of all uploads -- which is the reason to verify it on a real display rather than to
+    // trust it. EDEN_NX2_COPY_SKIP=1.
     const auto overwritten_by_copies = [&] {
         static const bool enabled = [] {
             const char* const value = std::getenv("EDEN_NX2_COPY_SKIP");
