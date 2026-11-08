@@ -108,8 +108,22 @@ every compressed segment, so a title that loads can serve as the control: Ocarin
 SHA-256, and the same decoder with bias 1 fails on it. So standard LZ4 is handled correctly and
 Pokopia really does need offset - 1.
 
-What is left is one rule that makes the output about 1.5% too long, drifting steadily rather
-than at a boundary (`subsdk0` seg0 is 8,740 over by the end of its own input).
+What is left is one length rule. Giving a match whose nibble is 15 a base of 1 rather than 4
+takes `subsdk0` seg0 from 8,636 bytes too long to **572**, and the whole module from 18,466 to
+562. No other combination of plain base, extended base or literal adjustment comes within 2,000.
+
+That is a hypothesis, not a result: the hash still does not match, and a rule that merely lands
+closer on size can be wrong in a way a size cannot show. What makes it worth recording is that
+the error splits cleanly over the 2,688 extended matches -- base 0 gives -2,116, base 1 gives
++572, and 2,116 + 572 = 2,688 -- so the real rule is base 0 for some extended matches and base 1
+for the rest. What separates them is not the number of extension bytes (2,673 have one, 15 have
+two), not the first extension byte's value, not whether the literals were extended (276), and
+not a small offset (55).
+
+The decoded output is not corrupt anywhere, which is the other thing to know before chasing it:
+over the whole 733,468 bytes no 4 KiB window loses the byte distribution of ARM64 code, and no
+724,832-byte window of it matches the hash. The surplus is interspersed, so some matches copy a
+few bytes too many while still copying real code.
 
 The header is not the problem. Dumped and decoded by hand it is an ordinary NSO0: magic `NSO0`,
 version 0, flags 0x3f, three segments whose memory offsets run in order, compressed sizes at
