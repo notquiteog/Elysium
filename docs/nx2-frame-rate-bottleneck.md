@@ -522,11 +522,18 @@ against a flat 41 -- a large win while it lasts -- followed by a decline into th
 **overlaps the patched run**. The earlier claim here that the two arms never overlap was taken
 from the sampled windows and is withdrawn: at the tail they do.
 
-The patched run showed no such decline over 39 windows, so the instability arrives with the
-dynamic resolution path rather than being present in both. Whether the tail is a heavier area or
-something that degrades over time is unresolved, and it needs a run that revisits the same spot
-to tell those apart. Until then the patch is worth disabling for the locked-60 stretch, but it is
-not a clean win.
+The patched run showed no such decline over 39 windows, which raised the question of whether the
+dynamic resolution path degrades over time or whether the tail was simply a heavier area.
+
+**It was the area.** A ten-minute headless run with the patch off, on a scene that does not
+change, holds 58.2 to 60.0 across 43 windows after shader compilation -- two dips (49.6 and 43.3)
+and 60.0 at t=598. Nothing declines. That run was under Xvfb, which costs about 30% of the frame
+rate, and a build was competing with it for part of its length; both can only have pushed the
+number down, so holding 60 at the end is a lower bound. The dynamic resolution path is stable
+over time.
+
+So the honest summary: a flat ~41 fps with the patch, against ~59 without it with
+area-dependent dips. The profile now disables it.
 
 The trade is image quality: the game now scales its 3D down under load, as it does on hardware.
 That is a judgement call rather than a measurement, so the patch default is unchanged and this is
