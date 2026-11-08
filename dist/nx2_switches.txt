@@ -33,17 +33,21 @@ EDEN_NX2_FENCE_BATCH=1
 # and 36.7 -> 34.0 fps, so the default stands and this is left for per-title testing.
 #EDEN_NX2_TEXTURE_COLD_HINT=0
 
-# Skip the guest-memory upload of a new image the join copies overwrite whole (opt-in). The
-# clear-binding equivalent is already unconditional and was worth ~15% of the GPU back thread on
-# Ocarina of Time; this covers the case where copies rather than a clear do the overwriting,
-# ported from Frizti's EXP8 bit 2. Off by default because, unlike the clear path, it leaves no
-# safety net: a predicate wrong anywhere shows as a garbage texture, and it fires often enough to
-# matter -- 10,497 skips in ~90 s on Mario Kart World, about 117/s against ~417 uploads/s, so
-# roughly a quarter of all uploads. The one run measured came in at 24.7 fps against 31-37 for
-# everything else that day, which on a machine that spreads 38% between identical runs is not
-# evidence either way. Wants a real display and an Ocarina of Time run before becoming a default.
-#EDEN_NX2_COPY_SKIP=1
-
+# BROKEN -- do not enable. Skips the guest-memory upload of a new image the join copies
+# overwrite whole (ported from Frizti's EXP8 bit 2; the clear-binding equivalent is already
+# unconditional here and was worth ~15% of the GPU back thread on Ocarina of Time).
+#
+# Tested on Ocarina of Time on a real display: text goes missing from the main menu and Link's
+# shadow intermittently becomes a square, after ~193 skips. So the predicate is wrong in this
+# tree -- it reports an image as fully covered by the join copies when it is not, and the
+# skipped upload leaves UI and shadow textures without their guest content. Unlike the clear
+# path it keeps no safety net (that one stays CpuModified so PrepareImage uploads anyway), so
+# there is nothing to catch it.
+#
+# The idea is still sound and the clear-case equivalent pays well, so the code is kept for
+# whoever fixes the predicate. It fires hard where it fires: ~117/s on Mario Kart World,
+# about a quarter of all uploads.
+#EDEN_NX2_COPY_SKIP=1   # leave off
 # --- Diagnostics (logging only, no behaviour change) ---
 # Front-thread waits per drain site, in wall clock, with how much of each was parked.
 #EDEN_NX2_WAIT_STATS=1

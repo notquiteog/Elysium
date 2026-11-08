@@ -3062,12 +3062,16 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
     // join copies, so this closes the complementary half. Ported from Frizti's EDEN_NX2_EXP8
     // bit 2, part of 52.0 -> 54.2 fps average and 31.1 -> 35.2 1% low on Ocarina of Time there.
     //
-    // Off by default: unlike the clear path this leaves no safety net -- that one stays
-    // CpuModified so PrepareImage still uploads if IsFullClear disagrees -- so a predicate that
-    // is wrong anywhere shows as a garbage texture rather than a slow frame. It fires often enough
-    // to matter -- 10,497 skips in ~90 s on Mario Kart World, ~117/s against ~417 uploads/s, about
-    // a quarter of all uploads -- which is the reason to verify it on a real display rather than to
-    // trust it. EDEN_NX2_COPY_SKIP=1.
+    // KNOWN BROKEN, which is why it is off by default. Tested on Ocarina of Time on a real
+    // display with EDEN_NX2_COPY_SKIP=1: text disappears from the main menu and Link's shadow
+    // intermittently becomes a square, after ~193 skips. The predicate reports an image as fully
+    // covered by the join copies when it is not, and the skipped upload then leaves UI and shadow
+    // textures without their guest content. Unlike the clear path there is no safety net to catch
+    // it -- that one stays CpuModified so PrepareImage uploads anyway if IsFullClear disagrees.
+    //
+    // Kept because the idea is sound and its clear-binding twin above pays well, and because it
+    // fires hard where it fires: ~117/s on Mario Kart World, about a quarter of all uploads. What
+    // it needs is a correct coverage test, not a switch.
     const auto overwritten_by_copies = [&] {
         static const bool enabled = [] {
             const char* const value = std::getenv("EDEN_NX2_COPY_SKIP");
