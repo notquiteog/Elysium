@@ -148,8 +148,7 @@ TEST_CASE("Title presets set what the titles need", "[game_presets]") {
 
 TEST_CASE("The titles asked to hold 60 generate frames to reach it", "[game_presets]") {
     for (const u64 program_id : {Settings::MarioKartWorldProgramId,
-                                 Settings::OcarinaOfTimeProgramId,
-                                 Settings::KirbyAirRidersProgramId}) {
+                                 Settings::OcarinaOfTimeProgramId}) {
         CAPTURE(program_id);
         auto settings = std::make_unique<Settings::Values>();
         // Not on before the preset, so these assertions cannot pass by default.
@@ -178,4 +177,8 @@ TEST_CASE("Kirby Air Riders builds its pipelines off the presenting thread", "[g
     // second run through a stage cheap.
     CHECK_FALSE(settings->use_reactive_flushing.GetValue());
     CHECK(settings->use_disk_shader_cache.GetValue());
+    // Balanced fences for the flickering, and no generation from a base too unstable to
+    // interpolate from.
+    CHECK(settings->gpu_fence_behavior.GetValue() == Settings::GpuFenceBehavior::Balanced);
+    CHECK_FALSE(settings->frame_gen.GetValue());
 }

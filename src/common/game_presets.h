@@ -73,11 +73,18 @@ inline void SetOcarinaOfTimeRecommendedSettings(Values& settings, bool global) {
 
 inline void SetKirbyAirRidersRecommendedSettings(Values& settings, bool global) {
     Detail::SetSwitch2BaseSettings(settings, global);
+    const auto session = Detail::SessionSetter(global);
     // It streams in compute pipelines as stages load: one session here built 706 of them on the
     // GPU thread, averaging 220 ms and peaking at 1074 ms, which held the frame rate at 7 fps
     // until they were done. The base profile's asynchronous shaders are what stop those builds
     // blocking the thread that presents.
-    Detail::SetFrameGenerationTo60(settings, global);
+    //
+    // Balanced fences for the texture and object flickering, as they do for the three other
+    // titles here that showed it.
+    session(settings.gpu_fence_behavior, GpuFenceBehavior::Balanced);
+    // No frame generation: it runs 35-50 fps here rather than near 60, and generating from a
+    // base that unstable both spends GPU time the game needs and gives FSR 3 its worst case to
+    // interpolate from. The titles that get it hold a rate close enough to 60 to fill in.
 }
 
 inline void SetDonkeyKongBananzaRecommendedSettings(Values& settings, bool global) {
@@ -136,7 +143,7 @@ inline constexpr GamePreset GamePresets[] = {
     {KirbyAirRidersProgramId, "Kirby Air Riders",
      "Vulkan, 1x resolution, GPU Fast, asynchronous shaders so its compute pipelines build off "
      "the presenting thread, BC3, conservative VRAM, reactive flushing off, FIFO Relaxed VSync, "
-     "ScaleForce, FXAA, and frame generation to 60.",
+     "ScaleForce, FXAA, and Balanced GPU fences for the texture and object flickering.",
      SetKirbyAirRidersRecommendedSettings},
     {OcarinaOfTimeProgramId, "The Legend of Zelda: Ocarina of Time",
      "Vulkan, 1x resolution, GPU Fast, asynchronous shaders, BC3, conservative VRAM, reactive "
