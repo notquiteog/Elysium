@@ -93,6 +93,12 @@ differently again rather than being more of the same.
 
 What is left is the length encoding, not the identification.
 
+`EDEN_NSO_DUMP_SEGMENTS` also writes a `.sha256` sidecar holding the header's hash of the
+decompressed segment and its size, so a candidate decoder is checked against the bytes the
+console would have produced rather than against a length. Against that oracle, nibble order,
+a 254 continuation byte and min-match 3, 5 and 6 are all ruled out; only offset - 1 with
+min-match 4 comes close, and it is long by 8,636 bytes on `subsdk0` seg0.
+
 ## Where that leaves it
 
 Two readings fit the evidence, and they want different work:

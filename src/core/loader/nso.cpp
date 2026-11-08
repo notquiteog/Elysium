@@ -178,6 +178,16 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
                             out_file.write(reinterpret_cast<const char*>(in.data()),
                                            static_cast<std::streamsize>(in.size()));
                             LOG_INFO(Loader, "Wrote {} bytes to {}", in.size(), path);
+                            // The header's SHA-256 of the decompressed segment: the oracle a
+                            // candidate decoder is checked against, rather than its output size.
+                            std::string expected;
+                            for (const u8 byte : nso_header.segment_hashes[i]) {
+                                expected += fmt::format("{:02x}", byte);
+                            }
+                            std::ofstream sidecar(path + ".sha256");
+                            if (sidecar) {
+                                sidecar << expected << "  " << segment_size << '\n';
+                            }
                         } else {
                             LOG_ERROR(Loader, "Could not write {}", path);
                         }
