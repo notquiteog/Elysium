@@ -322,3 +322,64 @@ the tell. The park is now counted where the thread actually parks.
 And the front has nothing to do with the frame rate regardless: it idles 300 to 372 ms of every
 second. Reducing its waits turns spinning into idling, which is worth having for power and for
 weaker CPUs, but it is not where the frames are.
+
+## Nothing is saturated, which is the whole diagnosis
+
+`perf` over 30 seconds of a played session, weighting each sample by its period and dividing by
+a P-core's 5.2 GHz:
+
+| thread | Gcycles | cores busy |
+|---|---|---|
+| GPUBack | 115.2 | 0.74 |
+| GPU (front) | 112.1 | 0.72 |
+| CPUCore_1 | 89.2 | 0.57 |
+| CPUCore_0 | 87.3 | 0.56 |
+| CPUCore_2 | 84.2 | 0.54 |
+| CPUCore_3/4/5 | ~80 each | 0.51 |
+| VulkanWorker | 26.0 | 0.17 |
+| **total** | **789.6** | **5.06** |
+
+Not one thread is saturated. The whole emulator wants 5.06 cores on a machine with 6 physical
+P-cores and 8 E-cores idle, and the GPU sits at 55 to 66%. The host is a 13th-gen i5-13600K, so
+a hybrid-placement problem was the obvious guess -- and it is wrong: of 51,602 samples, **zero**
+came from the `cpu_atom` PMU, so every thread ran on a P-core throughout.
+
+When no thread, no core and no GPU is at capacity and the frame rate is still half of target, the
+limit is not throughput. It is a serial dependency chain, and the cure is to shorten or overlap
+it rather than to make any one stage faster or to add threads.
+
+## The front thread does 113 ms of work per second
+
+Its second, from the zone profiler: 384 ms/s writer wait, 203 ms/s macro DMA read wait, 300 ms/s
+idle. That leaves about **113 ms/s of actual work -- 11% busy**. Every later idea about the front
+has to be read against that number: it has an order of magnitude of slack, so no change to how it
+waits can produce a frame.
+
+## Parks, not spins
+
+Wall-clock instrumentation (`EDEN_NX2_WAIT_STATS=1`) on Mario Kart World:
+
+| | front wait | parked | mean wait | mean park |
+|---|---|---|---|---|
+| window 2 | 570.3 ms/s | 508.9 ms/s (89%) | 196 us | 1,525 us |
+| window 3 | 472.6 ms/s | 315.4 ms/s (67%) | 118 us | 739 us |
+
+The front parks 0.1 times per wait, so 90% of waits never sleep -- and the few that do are 67 to
+89% of all the time spent waiting. **A spin count was the wrong instrument**, and reporting one
+is what made the spin threshold look like a lever for a day.
+
+These totals land on the zone profiler's 384 and 203 ms/s, measured independently and months
+apart. That is the first cross-validation in this document; everything above it rests on one
+instrument each.
+
+### Why a park lasts a millisecond
+
+The back publishes `consumed` and wakes the front at `Execute` boundaries, when it has advanced
+4096 words or reached `wait_target`. `WaitForWriters` waits for `last_writer_position` -- the
+newest compute or copy work queued. When that sits near `write_position`, the front is waiting
+for the back to drain **everything queued**, which is a full pipeline flush, not a latency blip.
+That is the millisecond.
+
+Narrowing it the way the releases were narrowed is not available: ranging needs the write's
+address range, and a compute dispatch's output range is not recorded anywhere. It would have to
+be tracked first.
