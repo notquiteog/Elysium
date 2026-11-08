@@ -44,6 +44,13 @@ EDEN_NX2_FENCE_BATCH=1
 # 2D format, every level and layer from the origin, nothing rescaled, trimmed, sparse, unbacked
 # or block-compressed. If the old symptoms come back, this is the switch to try.
 #EDEN_NX2_COPY_SKIP=0
+
+# Skip the guest-memory upload of a new image made entirely on pages a dropped GPU-written image
+# left stale, where the buffer cache has not written them on the GPU since: enabled by default.
+# Set to 0 to upload anyway. Ocarina of Time's render targets move address from frame to frame, so
+# the cache keeps making new ones (~400 a second in Castle Town) and uploaded ~9 GB of stale bytes
+# every 30 s. Same family as EDEN_NX2_COPY_SKIP above: if textures come out wrong, try both.
+#EDEN_NX2_TC_SKIP_STALE=0
 # --- Diagnostics (logging only, no behaviour change) ---
 # Front-thread waits per drain site, in wall clock, with how much of each was parked.
 #EDEN_NX2_WAIT_STATS=1
