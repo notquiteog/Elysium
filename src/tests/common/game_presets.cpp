@@ -141,4 +141,27 @@ TEST_CASE("Title presets set what the titles need", "[game_presets]") {
     REQUIRE(Settings::ApplyGamePreset(*settings, Settings::MarioTennisFeverProgramId, true));
     CHECK(settings->gpu_fence_behavior.GetValue() == Settings::GpuFenceBehavior::Balanced);
     CHECK(settings->async_presentation.GetValue());
+    settings = std::make_unique<Settings::Values>();
+    REQUIRE(Settings::ApplyGamePreset(*settings, Settings::OcarinaOfTimeProgramId, true));
+    CHECK(settings->gpu_fence_behavior.GetValue() == Settings::GpuFenceBehavior::Balanced);
+}
+
+TEST_CASE("The titles asked to hold 60 generate frames to reach it", "[game_presets]") {
+    for (const u64 program_id : {Settings::MarioKartWorldProgramId,
+                                 Settings::OcarinaOfTimeProgramId}) {
+        CAPTURE(program_id);
+        auto settings = std::make_unique<Settings::Values>();
+        // Not on before the preset, so these assertions cannot pass by default.
+        CHECK_FALSE(settings->frame_gen.GetValue());
+        REQUIRE(Settings::ApplyGamePreset(*settings, program_id, true));
+        CHECK(settings->frame_gen.GetValue());
+        // FSR 3, because DLSS frame generation needs Streamline and that is Windows only.
+        CHECK(settings->frame_gen_type.GetValue() == Settings::FrameGenType::Fsr3);
+        CHECK(settings->frame_gen_multiplier.GetValue() == 2);
+        CHECK(settings->frame_gen_target_rate.GetValue() == 60);
+    }
+    // And not turned on for a title that did not ask for it.
+    auto settings = std::make_unique<Settings::Values>();
+    REQUIRE(Settings::ApplyGamePreset(*settings, Settings::MarioTennisFeverProgramId, true));
+    CHECK_FALSE(settings->frame_gen.GetValue());
 }

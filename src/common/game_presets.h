@@ -10,6 +10,7 @@ inline constexpr u64 MarioKartWorldProgramId = 0x0400C3F00006E000ULL;
 inline constexpr u64 DonkeyKongBananzaProgramId = 0x040074A01BF12000ULL;
 inline constexpr u64 HyruleWarriorsAgeOfImprisonmentProgramId = 0x04003F40232DE000ULL;
 inline constexpr u64 MarioTennisFeverProgramId = 0x0400D4201C6EA000ULL;
+inline constexpr u64 OcarinaOfTimeProgramId = 0x0400486024DEC000ULL;
 
 namespace Detail {
 inline auto SessionSetter(bool global) {
@@ -34,11 +35,39 @@ inline void SetSwitch2BaseSettings(Values& settings, bool global) {
     session(settings.scaling_filter, ScalingFilter::ScaleForce);
     session(settings.anti_aliasing, AntiAliasing::Fxaa);
 }
+
+/// Reaches 60 by generating the frames the game does not produce itself. The pacer defers
+/// generation while the game is already above the target (frame_gen_pacer.cpp), so a title that
+/// holds 60 on its own is not paying for frames it does not need.
+///
+/// FSR 3 rather than DLSS because it runs on every card and platform; DLSS frame generation
+/// needs NVIDIA's Streamline, which is Windows only. The type can be switched while a game runs,
+/// so an RTX card can move to it without restarting.
+inline void SetFrameGenerationTo60(Values& settings, bool global) {
+    const auto session = SessionSetter(global);
+    session(settings.frame_gen, true);
+    session(settings.frame_gen_type, FrameGenType::Fsr3);
+    session(settings.frame_gen_multiplier, u32{2});
+    session(settings.frame_gen_target_rate, u32{60});
+}
 } // namespace Detail
 
 inline void SetMarioKartWorldRecommendedSettings(Values& settings, bool global) {
     Detail::SetSwitch2BaseSettings(settings, global);
     Detail::SessionSetter(global)(settings.use_docked_mode, ConsoleMode::Handheld);
+    Detail::SetFrameGenerationTo60(settings, global);
+}
+
+inline void SetOcarinaOfTimeRecommendedSettings(Values& settings, bool global) {
+    Detail::SetSwitch2BaseSettings(settings, global);
+    const auto session = Detail::SessionSetter(global);
+    // Balanced fences stop the texture and object flickering, as they do for the two other
+    // titles here that showed it.
+    session(settings.gpu_fence_behavior, GpuFenceBehavior::Balanced);
+    // Its own frame-rate controller gives ground rather than holding 60, and the built-in
+    // Dynamic FPS patch lets it fall as far as 10, so the generator makes up the difference
+    // instead of the game being left short of the display.
+    Detail::SetFrameGenerationTo60(settings, global);
 }
 
 inline void SetDonkeyKongBananzaRecommendedSettings(Values& settings, bool global) {
@@ -76,7 +105,8 @@ struct GamePreset {
 inline constexpr GamePreset GamePresets[] = {
     {MarioKartWorldProgramId, "Mario Kart World",
      "Vulkan, 1x resolution, GPU Fast, asynchronous shaders, BC3, conservative VRAM, reactive "
-     "flushing off, FIFO Relaxed VSync, handheld mode, ScaleForce, and FXAA.",
+     "flushing off, FIFO Relaxed VSync, handheld mode, ScaleForce, FXAA, and frame generation "
+     "to 60.",
      SetMarioKartWorldRecommendedSettings},
     {DonkeyKongBananzaProgramId, "Donkey Kong Bananza",
      "Vulkan, 1x resolution, GPU Fast, asynchronous shaders, BC3, conservative VRAM, reactive "
@@ -93,6 +123,11 @@ inline constexpr GamePreset GamePresets[] = {
      "flushing off, FIFO Relaxed VSync, ScaleForce, FXAA, Balanced GPU fences and asynchronous "
      "presentation.",
      SetMarioTennisFeverRecommendedSettings},
+    {OcarinaOfTimeProgramId, "The Legend of Zelda: Ocarina of Time",
+     "Vulkan, 1x resolution, GPU Fast, asynchronous shaders, BC3, conservative VRAM, reactive "
+     "flushing off, FIFO Relaxed VSync, ScaleForce, FXAA, Balanced GPU fences for the texture "
+     "and object flickering, and frame generation to 60.",
+     SetOcarinaOfTimeRecommendedSettings},
 };
 
 /// The title's preset, or nullptr when it has none.
