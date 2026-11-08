@@ -108,17 +108,17 @@ every compressed segment, so a title that loads can serve as the control: Ocarin
 SHA-256, and the same decoder with bias 1 fails on it. So standard LZ4 is handled correctly and
 Pokopia really does need offset - 1.
 
-What is left is one length rule. Giving a match whose nibble is 15 a base of 1 rather than 4
-takes `subsdk0` seg0 from 8,636 bytes too long to **572**, and the whole module from 18,466 to
-562. No other combination of plain base, extended base or literal adjustment comes within 2,000.
+What is left is one length rule, and it is not the base of an extended match. Giving a match
+whose nibble is 15 a base of 1 rather than 4 takes `subsdk0` seg0 from 8,636 bytes too long to
+572, which looks like progress until the other modules are tried: `sdk` then stops after 6,509
+of its 4,637,522 bytes and `main` after 8,717 of 23,151,272, because a shorter match leaves a
+later offset pointing past the output. Base 4 is the only value under which all three consume
+their input, so it stands.
 
-That is a hypothesis, not a result: the hash still does not match, and a rule that merely lands
-closer on size can be wrong in a way a size cannot show. What makes it worth recording is that
-the error splits cleanly over the 2,688 extended matches -- base 0 gives -2,116, base 1 gives
-+572, and 2,116 + 572 = 2,688 -- so the real rule is base 0 for some extended matches and base 1
-for the rest. What separates them is not the number of extension bytes (2,673 have one, 15 have
-two), not the first extension byte's value, not whether the literals were extended (276), and
-not a small offset (55).
+The arithmetic that made base 1 look promising proves nothing. Base 0 came out 2,116 short and
+base 1 came out 572 long, and 2,116 + 572 is 2,688, the number of extended matches -- but the
+two outputs differ by exactly one byte per extended match by construction, so any target lying
+between them splits that way. It is an identity, not evidence.
 
 The decoded output is not corrupt anywhere, which is the other thing to know before chasing it:
 over the whole 733,468 bytes no 4 KiB window loses the byte distribution of ARM64 code, and no
