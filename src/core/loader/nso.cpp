@@ -184,6 +184,18 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
                             for (const u8 byte : nso_header.segment_hashes[i]) {
                                 expected += fmt::format("{:02x}", byte);
                             }
+                            // The whole header too, so its layout can be checked against the
+                            // bytes rather than trusted.
+                            std::ofstream hdr(fmt::format("{}/{}.nsohdr.bin", dump_dir,
+                                                          nso_file.GetName()),
+                                              std::ios::binary);
+                            if (hdr) {
+                                std::array<u8, sizeof(NSOHeader)> raw{};
+                                if (nso_file.ReadBytes(raw.data(), raw.size(), 0) == raw.size()) {
+                                    hdr.write(reinterpret_cast<const char*>(raw.data()),
+                                              static_cast<std::streamsize>(raw.size()));
+                                }
+                            }
                             std::ofstream sidecar(path + ".sha256");
                             if (sidecar) {
                                 sidecar << expected << "  " << segment_size << '\n';

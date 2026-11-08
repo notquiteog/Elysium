@@ -105,10 +105,23 @@ than 0.
 What is left is one rule that makes the output about 1.5% too long, drifting steadily rather
 than at a boundary (`subsdk0` seg0 is 8,740 over by the end of its own input).
 
-That residual may not be in the decoder at all. The segment tables of these modules overrun
-their files by 980, 31 and 301 bytes, which nothing has explained, and a header read with the
-wrong layout would give both a bad table and wrong expected sizes. Worth checking the NSO header
-against the bytes before assuming the decoder is what is wrong.
+The header is not the problem. Dumped and decoded by hand it is an ordinary NSO0: magic `NSO0`,
+version 0, flags 0x3f, three segments whose memory offsets run in order, compressed sizes at
+0x60 and hashes at 0xA0, exactly the layout this loader expects.
+
+What that did settle is the overrun. Each module's compressed sizes plus the 0x100 header come
+to slightly more than the file holds:
+
+| module | compressed sum + 0x100 | file | short by |
+|---|---|---|---|
+| `subsdk0` | 750,791 | 750,781 | 10 |
+| `sdk` | 7,327,605 | 7,327,310 | 295 |
+| `main` | 29,405,074 | 29,404,104 | 970 |
+
+So the files really are a little shorter than their own headers describe, by a different amount
+each time. The last segment is the one left incomplete, which is consistent with the decoder
+consuming all of the earlier segments and running out only at the end. It does not explain the
+overshoot, which accumulates inside the first segment.
 
 `EDEN_NSO_DUMP_SEGMENTS` also writes a `.sha256` sidecar holding the header's hash of the
 decompressed segment and its size, so a candidate decoder is checked against the bytes the
