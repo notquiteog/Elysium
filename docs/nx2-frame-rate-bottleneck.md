@@ -100,6 +100,38 @@ measured zone, and by definition everything outside the named ones. **Texture up
 ms/s across 417 uploads**, 0.38 ms each, a sixth of the thread for a rate that is small beside
 the 40,323 draws.
 
+### Xvfb is in every number above
+
+`perf record` on the back thread, sampling from outside with no instrumentation effect, gives a
+different answer again:
+
+| share | symbol |
+|---|---|
+| 23.88% | `_copy_from_iter` (kernel) |
+| 11.63% | `Tegra::Texture::UnswizzleTexture` |
+| 6.75% | `GpuSplit::BackLoop` |
+| 6.05% | libc, memcpy |
+| 2.85% | `osDevReadReg032` (kernel, NVIDIA MMIO) |
+
+and the call graph under the first one is
+
+```
+_copy_from_iter <- copy_page_from_iter <- unix_stream_sendmsg <- writev
+  <- xcb_send_request <- xcb_put_image_checked
+```
+
+That is XCB pushing the frame to the X server through a unix socket, because these runs are
+headless under `Xvfb`, which has no GPU and so presents by copying. **A quarter of the back
+thread's time in these measurements is the test harness.** Every headless figure in this
+document carries it: the zone shares, the 66% GPU at 62 W, the frame rates.
+
+The symptom is still real -- it is reported on a normal desktop too -- but it has to be measured
+there. `Xvfb` is fine for checking that a title boots and renders; it is not fine for asking
+where the time goes.
+
+What survives from this profile is what does not touch the display: `UnswizzleTexture` at 11.63%
+is CPU texture unswizzling in our own code, on the thread that is the bottleneck.
+
 ### The profiler changes what it measures
 
 Before trusting any of the above too far: `Maxwell3D::InitializeRegisterDefaults` sets
